@@ -1,0 +1,104 @@
+{
+  "topics": [
+    {
+      "topic_id": "SM",
+      "title": "代数表达式",
+      "goal": "化简和表示数量关系"
+    }
+  ],
+  "indicators": [
+    {
+      "indicator_id": "SK01",
+      "topic_id": "SM",
+      "description": "去括号与合并",
+      "references": []
+    },
+    {
+      "indicator_id": "SK02",
+      "topic_id": "SM",
+      "description": "表示数量关系",
+      "references": []
+    },
+    {
+      "indicator_id": "SK03",
+      "topic_id": "SM",
+      "description": "解释表达式",
+      "references": []
+    }
+  ],
+  "items": [
+    {
+      "item_id": "X01",
+      "indicator_ids": [
+        "SK01"
+      ],
+      "item_type": "解答题",
+      "max_score": 2,
+      "prompt": "化简 5m+3n-(2m+4n)。",
+      "options": [],
+      "reference_answer": "3m-n",
+      "rubric_points": [
+        {
+          "rubric_point_id": "X01P1",
+          "criterion": "正确去括号并合并",
+          "max_score": 1
+        },
+        {
+          "rubric_point_id": "X01P2",
+          "criterion": "写出正确结果",
+          "max_score": 1
+        }
+      ]
+    },
+    {
+      "item_id": "X02",
+      "indicator_ids": [
+        "SK02"
+      ],
+      "item_type": "填空题",
+      "max_score": 1,
+      "prompt": "每盒彩笔 c 元，买 4 盒支付多少元？",
+      "options": [],
+      "reference_answer": "4c",
+      "rubric_points": [
+        {
+          "rubric_point_id": "X02P1",
+          "criterion": "正确表示数量关系",
+          "max_score": 1
+        }
+      ]
+    },
+    {
+      "item_id": "X03",
+      "indicator_ids": [
+        "SK02"
+      ],
+      "item_type": "填空题",
+      "max_score": 1,
+      "prompt": "有 b 张纸，又收到 7 张，共有多少张？",
+      "options": [],
+      "reference_answer": "b+7",
+      "rubric_points": [
+        {
+          "rubric_point_id": "X03P1",
+          "criterion": "正确表示数量关系",
+          "max_score": 1
+        }
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "node_id": "NX",
+      "assessment_date": "2026-01-01",
+      "title": "合成测验",
+      "item_ids": [
+        "X01",
+        "X02",
+        "X03"
+      ]
+    }
+  ],
+  "resources": [],
+  "learning_relations": []
+}

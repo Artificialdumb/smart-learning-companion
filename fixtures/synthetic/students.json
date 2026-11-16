@@ -1,0 +1,22 @@
+[
+  {
+    "student_id": "S01",
+    "class_id": "SX",
+    "grade": 7
+  },
+  {
+    "student_id": "S02",
+    "class_id": "SX",
+    "grade": 7
+  },
+  {
+    "student_id": "S03",
+    "class_id": "SY",
+    "grade": 7
+  },
+  {
+    "student_id": "S04",
+    "class_id": "SY",
+    "grade": 7
+  }
+]
