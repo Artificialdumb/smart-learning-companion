@@ -99,6 +99,15 @@
       ]
     }
   ],
-  "resources": [],
+  "resources": [
+    {
+      "resource_id": "X-L01",
+      "title": "整式化简学习卡",
+      "content": "按括号前的符号判断括号内每一项如何变化，再按同类项合并。",
+      "resource_type": "learning_card",
+      "indicator_ids": ["SK01"],
+      "source_locator": "合成练习"
+    }
+  ],
   "learning_relations": []
 }

@@ -43,3 +43,27 @@ class_report = {"run_id": run_id, **comparisons[node_id]}
 | `findings` | `observed_difference` 给出同范围内有差异的分数与覆盖。 `common_miss` 要求同班同题同一评分点至少 2 名学生失分，提供 `class_id`、`item_id`、`rubric_point_id`、`missed_students`、`scored_students`、`record_ids`。 `not_comparable` 说明无比较范围的原因。 |
 
 同题可映射多个指标，对应指标可重复引用该题。计算主题或节点汇总时按作答事件去重，使用题号并集回筛记录。分数比较为观察到的同节点结果，共同题中的作答人数可因题、因班变化。跨节点若要判断变化，需要为同题或明确可比题组另做统计。
+
+## C 模块联调
+
+安装方式见 [README](../README.md)。在仓库根目录执行下列命令。构建命令打印新批次编号。
+
+```sh
+python -m app.cli build --source fixtures/synthetic
+python -m app.cli build --source "../赛题数据/赛题资料包"
+python -m uvicorn app.web.main:app --host 127.0.0.1 --port 8000
+python -m app.cli export --run-id <批次编号> --out outputs/成果包
+```
+
+- `build --source` 接收赛题资料包根目录或标准化批次目录。标准化目录含 `manifest.json`、`catalog.json`、`students.json`、`responses.jsonl`，可附 `quality_report.json`。当前 CSV 路径复用 `tools.prepare_fixture` 的开发适配器。A 模块交付后可走标准化入口。
+- 如用非默认 SQLite 文件，构建和导出传 `--db <路径>`，启动网页时设置 `STUDY_DB=<相同路径>`。默认文件为 `outputs/study.sqlite3`。
+- 构建生成新批次号，成功提交后才切换当前批次。已打开的页面按初始化时的批次查询和保存。导出读取所选批次及其同一时刻的教师调整，输出目录使用新路径。
+- 规则按指标定位本次具体失分优先给巩固建议。至少两条独立满分作答才给变式练习。已测且无有效证据时安排补充观察，未测指标不生成活动。题目优先从同节点、同指标、该学生未作答的材料中选。教师可用同范围内的其他题目或映射到该指标的学习卡、教材替换。
+- 默认离线。可选设置 `STUDY_MODEL` 为本地 OpenAI 兼容模型名，`STUDY_MODEL_PORT` 默认 11434，服务需要凭据时设置 `STUDY_MODEL_KEY`。构建只向回环地址发送活动类别、指标编号和候选材料编号。模型可从已校验的候选中选择，异常或无效结果使用规则首选。提示和复查条件由模板提供。
+- 运行于本地演示环境。资源和作答按赛题使用范围保存在本地。提交前按赛题要求核对成果包中的记录及引用材料范围。
+
+### 演示复核
+
+1. 选择 D01、N01，在个人页打开 `DR0001` 检查第 2 步、最终作答和 `Q015P3`，打开计划中的 Q016。打开教师调整，改提示或顺序，保存后刷新检查版本和有效活动。合成批次可以用 S01、NX、X-R01 走同一流程。
+2. 切到 D14、N02 查看指标 T03I2 的变式 Q053。再看 D17，分别核对 N01 的一元一次方程补充观察、N01 未测的不等式指标和 N02 的不等式补充观察。
+3. 打开班级对比，检查两个班的共同题、覆盖分母和得分分母。打开课程材料，按指标查看配套题目和出处。导出此批次，核对 `cases.json`、`recommendations.json` 中的证据和调整版本与页面一致。

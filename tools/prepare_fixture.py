@@ -217,7 +217,7 @@ def write_json(path, obj):
     path.write_text(json.dumps(obj, ensure_ascii=False, indent=2, allow_nan=False) + "\n", encoding="utf-8")
 
 
-def prepare(source, out):
+def load_csv_batch(source):
     base = Path("4_赛题数据/模拟学情数据")
     paths = {name: base / f"{name}.csv" for name in TABLES}
     files = [
@@ -237,6 +237,12 @@ def prepare(source, out):
         "source_files": files, "built_at": datetime.now().astimezone().isoformat(timespec="seconds"),
         "rules_version": RULES,
     }
+    return manifest, catalog, students, latest, quality
+
+
+def prepare(source, out):
+    manifest, catalog, students, latest, quality = load_csv_batch(source)
+    run_id = manifest["run_id"]
     out.mkdir()
     for name, value in (
         ("manifest", manifest), ("catalog", catalog), ("students", students),

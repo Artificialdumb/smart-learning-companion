@@ -1,29 +1,30 @@
-# 智能学伴
+# 智慧学伴
 
-七年级数学学情分析项目。当前实现个人诊断和班级分析，从同一批经过校验的作答生成指标摘要、证据引用和同节点两班比较。
+七年级数学学情分析与学习建议系统。个人诊断和班级比较使用同一批有效作答。教师可以打开作答证据、查看学习材料并调整学习计划。
+
+## 本地运行
+
+需要 Python 3.11 或更新版本。在仓库根目录执行：
+
+```sh
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e '.[test]'
+python -m app.cli build --source fixtures/synthetic
+python -m uvicorn app.web.main:app --host 127.0.0.1 --port 8000
+```
+
+打开 [本地工作区](http://127.0.0.1:8000/)。如需使用本地赛题资料，改用 `python -m app.cli build --source "../赛题数据/赛题资料包"`。构建会打印批次编号。用 `python -m app.cli export --run-id <批次编号> --out outputs/成果包` 导出成果。运行测试用 `python -m unittest discover -s tests -v`。
 
 | 目录 | 内容 |
 |---|---|
 | `app/diagnosis/` | 个人作答覆盖、得分、评分点与证据不足提示 |
 | `app/class_analysis/` | 两班共同题范围、名册人数、覆盖、得分和共性失分 |
-| `tools/` | 本地 CSV 输入适配与 JSON 结果构建 |
-| `fixtures/synthetic/` | 可复跑的合成题目、名册和作答 |
-| `tests/` | 证据、修订归并与比较范围的验收测试 |
-| [docs/integration.md](docs/integration.md) | Python 接口、输出字段与统计口径 |
+| `app/recommendations/` | 学习材料匹配、分步提示和教师调整校验 |
+| `app/web/` | FastAPI 接口和本地网页 |
+| `app/storage.py`、`app/cli.py` | SQLite 批次、教师调整、构建和导出 |
+| `tools/` | CSV 开发适配与 B 模块独立构建 |
+| `fixtures/synthetic/` | 可复跑的合成联调批次 |
+| [联调说明](docs/integration.md) · [数据契约](docs/contracts.md) | 模块调用、字段、统计口径和演示复核 |
 
-## 运行
-
-使用 Python 3.11+ 标准库。在仓库根目录运行：
-
-```sh
-python3 -m unittest discover -s tests -v
-python3 -m tools.build_b --input fixtures/synthetic --out outputs
-```
-
-生成 `outputs/diagnosis.json` 和 `outputs/class_comparison.json`。`--out` 指向父目录已存在的新路径。重复运行可指定新的输出目录。
-
-## 接入
-
-`diagnose_students` 和 `compare_classes` 接收同批目录、完整名册和作答视图。也可使用 `python3 -m tools.build_b --input <批次目录> --out <输出目录>` 从标准化 JSON 输入直接构建结果。具备赛题 CSV 的团队成员可在本地用 `python3 -m tools.prepare_fixture --source <资料包目录> --out data` 准备调试输入。
-
-仓库样例由合成数据编写。赛题资料、赛题作答及其分析结果保存在本地项目目录，使用范围遵循赛事规则。
+B 模块的独立入口仍可用 `python -m tools.build_b --input fixtures/synthetic --out outputs/b`。团队成员可用 `python -m tools.prepare_fixture --source <资料包目录> --out data` 准备标准化输入。赛题资料、赛题作答和其分析结果保存在忽略目录中，按赛题规则使用。

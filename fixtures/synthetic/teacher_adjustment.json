@@ -1,0 +1,19 @@
+{
+  "expected_version": 0,
+  "activities": [
+    {
+      "recommendation_id": "REC-S01-NX-01",
+      "resource_id": "X-L01",
+      "sequence": 1,
+      "hints": ["逐项检查括号前的符号。", "用自己的例子解释每一步。"],
+      "recheck_condition": "能说明去括号后每一项的符号如何确定。"
+    },
+    {
+      "recommendation_id": "REC-S01-NX-02",
+      "resource_id": "X02",
+      "sequence": 2,
+      "hints": ["说说每个量的含义。", "保留列式过程。"],
+      "recheck_condition": "独立列式，并说明式子与数量关系的对应。"
+    }
+  ]
+}
