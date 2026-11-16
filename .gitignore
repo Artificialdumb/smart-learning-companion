@@ -6,6 +6,7 @@ __pycache__/
 .DS_Store
 /data/
 /outputs/
+/赛题资料包/
 
 *.egg-info/
 /build/

@@ -1,6 +1,7 @@
 """Build a batch from contest CSV or normalized inputs, or export a saved batch."""
 
 import argparse
+import csv
 import hashlib
 import json
 import sysconfig
@@ -11,13 +12,13 @@ from tempfile import TemporaryDirectory
 from uuid import uuid4
 
 from app._analysis import index
+from app.a_pipeline import load_csv_batch
 from app.class_analysis import compare_classes
 from app.contracts import encode_json, with_run
 from app.diagnosis import diagnose_students
 from app.recommendations import generate_plans, resource_index
 from app.recommendations.local_model import local_selector
 from app.storage import Store
-from tools.prepare_fixture import load_csv_batch
 
 DEFAULT_DB = Path("outputs/study.sqlite3")
 ROOT = Path(__file__).resolve().parents[1]
@@ -84,14 +85,18 @@ def validate_catalog(catalog):
     return {**catalog, "resources": list(resources.values())}
 
 
-def build(source, db):
+def build(source, db, *, reviews_path=None):
     if (source / "manifest.json").is_file():
+        if reviews_path is not None:
+            raise ValueError("复核文件须与原始赛题资料包一起使用。")
         input_manifest, catalog, students, rows, quality = normalized_batch(source)
+        usable = [r for r in rows if r["scoring_status"] == "graded" and r["validation_status"] == "valid"]
     else:
-        input_manifest, catalog, students, rows, quality = load_csv_batch(source)
+        input_manifest, catalog, imported = load_csv_batch(source, reviews_path=reviews_path)
+        students, rows = imported.students, imported.latest_responses
+        usable, quality = imported.usable_responses, imported.quality_report
     catalog = validate_catalog(catalog)
     records = index(rows, "record_id")
-    usable = [r for r in rows if r["scoring_status"] == "graded" and r["validation_status"] == "valid"]
     if quality is None:
         quality = quality_for_latest(rows, usable)
     if quality["usable_count"] != len(usable):
@@ -204,6 +209,7 @@ def main():
     subcommands = parser.add_subparsers(dest="command", required=True)
     build_command = subcommands.add_parser("build")
     build_command.add_argument("--source", required=True, type=Path)
+    build_command.add_argument("--reviews", type=Path, help="应用于原始作答 CSV 的复核决定 JSON")
     export_command = subcommands.add_parser("export")
     export_command.add_argument("--run-id", required=True)
     export_command.add_argument("--out", required=True, type=Path)
@@ -212,10 +218,10 @@ def main():
     args = parser.parse_args()
     try:
         if args.command == "build":
-            print(build(args.source, args.db))
+            print(build(args.source, args.db, reviews_path=args.reviews))
         else:
             print(export(args.db, args.run_id, args.out))
-    except (OSError, KeyError, TypeError, ValueError) as error:
+    except (OSError, KeyError, TypeError, ValueError, csv.Error) as error:
         parser.exit(1, f"操作失败：{error}\n")
 
 
