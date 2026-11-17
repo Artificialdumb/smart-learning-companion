@@ -138,6 +138,13 @@ def create_app(db_path=None):
             view.update(pick(item, "prompt", "options", "item_type"))
         elif row["resource_type"] == "learning_card":
             view["content"] = row.get("content", row["title"])
+        elif row["resource_type"] == "textbook" and row.get("indicator_locations"):
+            view["indicator_locations"] = {
+                indicator_id: [
+                    pick(ref, "section", "pdf_pages", "printed_page_range", "locator") for ref in refs
+                ]
+                for indicator_id, refs in row["indicator_locations"].items()
+            }
         return with_run(run_id, view)
 
     @app.get("/api/students/{student_id}/recommendations")

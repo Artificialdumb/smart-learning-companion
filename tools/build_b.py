@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from app.class_analysis import compare_classes
+from app.contracts import usable_rows
 from app.diagnosis import diagnose_students
 
 
@@ -17,10 +18,8 @@ def build(source, out):
     roster = read_json(source / "students.json")
     with (source / "responses.jsonl").open(encoding="utf-8") as stream:
         latest = [json.loads(line) for line in stream if line.strip()]
-    usable = [
-        r for r in latest
-        if r["scoring_status"] == "graded" and r["validation_status"] == "valid"
-    ]
+    usable_file = source / "usable_responses.jsonl"
+    usable = usable_rows(latest, usable_file.read_bytes() if usable_file.is_file() else None)
     diagnostics = diagnose_students(catalog, roster, latest, usable)
     comparisons = compare_classes(catalog, roster, usable)
     outputs = {

@@ -55,7 +55,7 @@ python -m uvicorn app.web.main:app --host 127.0.0.1 --port 8000
 python -m app.cli export --run-id <批次编号> --out outputs/成果包
 ```
 
-- `build --source` 接收赛题资料包根目录或标准化批次目录。原始 CSV 走 A 的课程目录与导入校验。标准化目录含 `manifest.json`、`catalog.json`、`students.json`、`responses.jsonl`，可附 `quality_report.json`。用 `python -m app.a_pipeline --source data/赛题资料包 --out outputs/a_snapshots` 可以独立生成标准化快照，后续构建时传入命令打印的批次路径。`tools.prepare_fixture` 是早期开发适配入口。
+- `build --source` 接收赛题资料包根目录或标准化批次目录。原始 CSV 走 A 的课程目录与导入校验。标准化目录含 `manifest.json`、`catalog.json`、`students.json`、`responses.jsonl`，可附 `quality_report.json` 和 `usable_responses.jsonl`。有效作答文件须与最新作答的 `graded + valid` 记录一致。用 `python -m app.a_pipeline --source data/赛题资料包 --out outputs/a_snapshots` 可以独立生成标准化快照，后续构建时传入命令打印的批次路径。`tools.prepare_fixture` 是早期开发适配入口。
 - 如用非默认 SQLite 文件，构建和导出传 `--db <路径>`，启动网页时设置 `STUDY_DB=<相同路径>`。默认文件为 `outputs/study.sqlite3`。
 - 构建生成新批次号，成功提交后才切换当前批次。已打开的页面按初始化时的批次查询和保存。导出读取所选批次及其同一时刻的教师调整，输出目录使用新路径。
 - 规则按指标定位本次具体失分优先给巩固建议。至少两条独立满分作答才给变式练习。已测且无有效证据时安排补充观察，未测指标不生成活动。题目优先从同节点、同指标、该学生未作答的材料中选。教师可用同范围内的其他题目或映射到该指标的学习卡、教材替换。

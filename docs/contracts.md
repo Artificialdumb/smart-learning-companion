@@ -10,6 +10,7 @@ JSON 和 JSONL 使用 UTF-8。编号为字符串，分数和计数为整数，�
 | `catalog.json` | 各集合业务编号 | `topics`、`indicators`、`items`、`resources`、`nodes`、`learning_relations`。指标有 `topic_id`、`description` 和材料引用。题目有 `indicator_ids`、题干、题型、选项、满分和评分点。材料有类型、标题、适用指标和资料定位。节点以 `item_ids` 规定测验范围。 |
 | `students.json` | `student_id` | 完整名册。包含 `class_id` 和可用的年级。 |
 | `responses.jsonl` | `record_id` | 最新作答。含事件号、修订版本、学生、节点、题目、`scoring_status`、`validation_status`、总得分、满分、最终作答、步骤和评分点得分。冲突的最高修订可留多条记录供复核。 |
+| `usable_responses.jsonl`（A 快照可选） | `record_id` | `responses.jsonl` 中 `graded + valid` 的完整记录子集。提供此文件时，统一构建与 B 独立构建均核对记录编号与内容。 |
 | `quality_report.json` | `run_id` | 原始行数、事件数、最新评分状态计数、有效记录数和问题明细。A 的报告还含 `response_source_sha256`、`reviews` 和 `unresolved_review_count`。输入只含最新作答时，缺少的原始行数和问题明细为 `null`。 |
 | `learning_requirements.json` | `run_id` | 主题、指标和学习内容间的关系。 |
 | `diagnosis.json` | `student_id + node_id` | 个人指标覆盖、有效得分、证据状态和诊断发现。发现中的证据按 `record_id`、评分点编号和从 1 起算的步骤编号回查。 |
@@ -48,4 +49,4 @@ A 生成的目录引用含可直接展示的 `locator`。已核实版本的课�
 | GET | `/api/resources/{resource_id}` |
 | PUT | `/api/plans/{plan_id}/teacher-adjustment` |
 
-错误格式为 `{"error":{"code":"…","message":"…","details":{}}}`，`details` 可省。404 表示未找到数据，409 表示调整版本过期，422 表示参数或调整内容不合规，503 表示当前没有可访问批次。学生练习资源接口按字段白名单返回内容，参考答案和解析留在批次输入中。
+错误格式为 `{"error":{"code":"…","message":"…","details":{}}}`，`details` 可省。404 表示未找到数据，409 表示调整版本过期，422 表示参数或调整内容不合规，503 表示当前没有可访问批次。教材详情可含 `indicator_locations`，按指标编号列出小节、PDF 页码区间、印刷页码区间和显示定位。学生练习资源接口按字段白名单返回内容，参考答案和解析留在批次输入中。

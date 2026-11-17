@@ -54,7 +54,7 @@ async function detail(title, load) {
 }
 
 function resource(id) {
-  detail(`材料 ${id}`, async () => resourceDetails(await api(`/resources/${encodeURIComponent(id)}`)));
+  detail(`材料 ${id}`, async () => resourceDetails(await api(`/resources/${encodeURIComponent(id)}`), model));
 }
 
 function record(id, evidence) {

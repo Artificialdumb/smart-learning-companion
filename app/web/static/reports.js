@@ -106,11 +106,15 @@ export function recordDetails(row, evidence) {
   ];
 }
 
-export function resourceDetails(row) {
+export function resourceDetails(row, model) {
   const source = locator(row.source_locator);
+  const locations = Object.entries(row.indicator_locations ?? {}).flatMap(([indicatorId, refs]) =>
+    refs.map(ref => el("li", {}, model.indicators.get(indicatorId)?.description ?? indicatorId,
+      " · ", locator(ref.locator))));
   return [
     el("p", {class: "meta"}, labels[row.resource_type] ?? "材料", source ? ` · ${source}` : ""),
     el("pre", {}, row.prompt ?? row.content ?? row.title),
     row.options?.length ? el("ul", {}, row.options.map(option => el("li", {}, option))) : null,
+    locations.length ? el("div", {}, el("h3", {}, "按指标定位"), el("ul", {}, locations)) : null,
   ];
 }

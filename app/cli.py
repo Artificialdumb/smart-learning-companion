@@ -14,7 +14,7 @@ from uuid import uuid4
 from app._analysis import index
 from app.a_pipeline import load_csv_batch
 from app.class_analysis import compare_classes
-from app.contracts import encode_json, with_run
+from app.contracts import encode_json, usable_rows, with_run
 from app.diagnosis import diagnose_students
 from app.recommendations import generate_plans, resource_index
 from app.recommendations.local_model import local_selector
@@ -27,13 +27,14 @@ RECOMMENDATION_RULES = "recommendations-1.0"
 
 def normalized_batch(source):
     required = ("manifest.json", "catalog.json", "students.json", "responses.jsonl")
-    names = [*required]
-    if (source / "quality_report.json").exists():
-        names.append("quality_report.json")
+    names = [*required, *(name for name in ("quality_report.json", "usable_responses.jsonl")
+                          if (source / name).is_file())]
     files = {name: (source / name).read_bytes() for name in names}
     manifest, catalog, students = (json.loads(files[name]) for name in required[:3])
     latest = [json.loads(line) for line in files["responses.jsonl"].splitlines() if line.strip()]
-    quality = json.loads(files["quality_report.json"]) if len(names) > len(required) else None
+    if "usable_responses.jsonl" in files:
+        usable_rows(latest, files["usable_responses.jsonl"])
+    quality = json.loads(files["quality_report.json"]) if "quality_report.json" in files else None
     manifest = {
         **manifest,
         "upstream_source_files": manifest["source_files"],
@@ -90,7 +91,7 @@ def build(source, db, *, reviews_path=None):
         if reviews_path is not None:
             raise ValueError("复核文件须与原始赛题资料包一起使用。")
         input_manifest, catalog, students, rows, quality = normalized_batch(source)
-        usable = [r for r in rows if r["scoring_status"] == "graded" and r["validation_status"] == "valid"]
+        usable = usable_rows(rows)
     else:
         input_manifest, catalog, imported = load_csv_batch(source, reviews_path=reviews_path)
         students, rows = imported.students, imported.latest_responses
