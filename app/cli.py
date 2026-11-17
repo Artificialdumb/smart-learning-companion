@@ -25,6 +25,8 @@ from app.storage import Store
 DEFAULT_DB = Path("outputs/study.sqlite3")
 ROOT = Path(__file__).resolve().parents[1]
 RECOMMENDATION_RULES = "recommendations-1.0"
+# Keys that only describe an exported package; a rebuild must not inherit them.
+EXPORT_ONLY_KEYS = ("exported_at", "adjustment_versions")
 
 
 def normalized_batch(source):
@@ -38,7 +40,7 @@ def normalized_batch(source):
         usable_rows(latest, files["usable_responses.jsonl"])
     quality = json.loads(files["quality_report.json"]) if "quality_report.json" in files else None
     manifest = {
-        **manifest,
+        **{key: value for key, value in manifest.items() if key not in EXPORT_ONLY_KEYS},
         "upstream_source_files": manifest["source_files"],
         "source_files": [{"path": name, "sha256": hashlib.sha256(content).hexdigest()}
                          for name, content in files.items()],
@@ -148,10 +150,13 @@ def case_examples(diagnoses, plans):
             continue
         plan, activity = chosen
         student, node_id = plan["student_id"], plan["node_id"]
-        report = diagnoses[student][node_id]
+        report = diagnoses.get(student, {}).get(node_id, {"indicators": []})
+        diagnosis = next((i for i in report["indicators"] if i["indicator_id"] == activity["indicator_id"]), None)
+        if diagnosis is None:
+            raise ValueError(f"案例活动找不到对应诊断: {plan['plan_id']} {activity['indicator_id']}")
         cases.append(with_run(plan["run_id"], {
             "student_id": student, "node_id": node_id, "kind": kind,
-            "diagnosis": next(i for i in report["indicators"] if i["indicator_id"] == activity["indicator_id"]),
+            "diagnosis": diagnosis,
             "activity": activity, "adjustment_version": plan["adjustment_version"],
         }))
     return cases

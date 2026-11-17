@@ -161,8 +161,10 @@ def create_app(db_path=None):
     @app.get("/api/records/{record_id}")
     def record(record_id: str, run_id: QueryId, actor: Actor):
         batch = store.batch(run_id)
-        row = lookup(batch["records"], record_id, "record_not_found")
-        actor.require_student(batch, row["student_id"])
+        row = batch["records"].get(record_id)
+        # Hidden and nonexistent records get the same 404 so record ids cannot be probed.
+        if row is None or not actor.can_view_student(batch, row["student_id"]):
+            raise missing("record_not_found", record_id)
         item = index(batch["catalog"]["items"], "item_id").get(row["item_id"])
         points = rubric_points(item).values() if item else ()
         return with_run(run_id, {

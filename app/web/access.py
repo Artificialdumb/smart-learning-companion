@@ -28,11 +28,14 @@ class Access:
                 or (self.role == "teacher" and student["class_id"] in self.class_ids)
                 or (self.role == "student" and student["student_id"] == self.student_id))
 
-    def require_student(self, batch, student_id):
+    def can_view_student(self, batch, student_id):
         if self.role == "demo":
-            return
+            return True
         student = batch["students"].get(student_id)
-        if student is None or not self.can_view(student):
+        return student is not None and self.can_view(student)
+
+    def require_student(self, batch, student_id):
+        if not self.can_view_student(batch, student_id):
             raise ContractError("forbidden", "没有权限访问该学生的数据。", 403)
 
     def can_compare(self, classes):
