@@ -91,6 +91,7 @@ export function catalogPanel(catalog, model, openResource) {
 export function recordDetails(row, evidence) {
   const points = new Set(evidence?.rubric_point_ids ?? []);
   const steps = new Set(evidence?.step_numbers ?? []);
+  const recordedSteps = Array.isArray(row.steps) ? row.steps : [];
   const caption = `修订 ${row.revision} · ${labels[row.scoring_status] ?? row.scoring_status}`;
   return [
     el("p", {class: "meta"}, caption, row.score == null ? "" : ` · 得分 ${row.score}/${row.max_score}`),
@@ -98,7 +99,7 @@ export function recordDetails(row, evidence) {
     el("h3", {}, "实际作答"),
     el("pre", {}, row.final_answer ?? "暂无最终作答"),
     el("h3", {}, "解题步骤"),
-    row.steps.length ? el("ol", {}, row.steps.map((step, i) =>
+    recordedSteps.length ? el("ol", {}, recordedSteps.map((step, i) =>
       el("li", {class: steps.has(i + 1) ? "warning" : undefined},
         steps.has(i + 1) ? "证据步骤 · " : "", step))) : el("p", {class: "muted"}, "该记录没有步骤文本。"),
     el("h3", {}, "评分点"),

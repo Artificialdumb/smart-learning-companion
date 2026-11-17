@@ -32,3 +32,5 @@ python -m uvicorn app.web.main:app --host 127.0.0.1 --port 8000
 | [联调说明](docs/integration.md) · [数据契约](docs/contracts.md) | 模块调用、字段、统计口径和演示复核 |
 
 B 模块的独立入口为 `python -m tools.build_b --input fixtures/synthetic --out outputs/b`。用 `python -m app.a_pipeline --source data/赛题资料包` 可单独生成 A 的标准化快照。赛题资料、赛题作答和其分析结果保存在忽略目录中，按赛题规则使用。
+
+默认是本机演示模式。共享服务须配置账号权限和 HTTPS，见[共享服务配置](docs/integration.md#共享服务配置)。

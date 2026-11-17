@@ -4,8 +4,9 @@ import {button, el, labels} from "./ui.js";
 const dimensions = {concept: "概念理解", calculation: "计算执行", reading: "条件理解"};
 const outcomes = {pass: "本题通过", gap: "需核查", uncertain: "未确定"};
 
-export function followupPanel(initial, save, reload, openRecord) {
+export function followupPanel(initial, save, reload, openRecord, drafts) {
   const container = el("div");
+  const key = JSON.stringify([initial.run_id, initial.student_id, initial.node_id, initial.indicator_id]);
   function render(view) {
     const result = view.result;
     const output = result && el("section", {class: "findings", "aria-label": "追问反馈"},
@@ -24,29 +25,43 @@ export function followupPanel(initial, save, reload, openRecord) {
     }
     const form = el("form", {}, el("p", {class: "meta"},
       "请学生独立完成这 3 道小题；不确定时如实选择。提交后保存反馈，不改变原测验分数。"));
+    const draft = drafts.get(key);
+    const version = draft?.probe_version === view.probe_version ? draft.version : view.version;
+    const selections = draft?.probe_version === view.probe_version ? draft.answers : {};
     const fields = view.questions.map((question, i) => el("fieldset", {},
       el("legend", {}, `${i + 1}. ${question.prompt}`),
       [...question.options, {option_id: "unsure", text: "不确定"}].map(option =>
         el("label", {class: "probe-option"},
-          el("input", {type: "radio", name: question.question_id, value: option.option_id, required: ""}),
+          el("input", {type: "radio", name: question.question_id, value: option.option_id, required: "",
+            checked: selections[question.question_id] === option.option_id ? "" : undefined}),
           el("span", {}, option.text)))));
     const status = el("p", {role: "status", "aria-live": "polite"});
     const submit = el("button", {type: "submit", class: "primary"}, result ? "重新作答并保存" : "提交追问");
     const refresh = button("重新读取（清除本次选择）", async () => {
       refresh.disabled = true;
-      try { render(await reload()); }
+      try {
+        const latest = await reload();
+        drafts.delete(key);
+        render(latest);
+      }
       catch (error) { status.textContent = error.message; refresh.disabled = false; }
     });
     refresh.hidden = true;
     form.append(...fields, el("div", {class: "actions"}, submit, refresh), status);
+    form.addEventListener("change", () => drafts.set(key, {
+      version, probe_version: view.probe_version, answers: Object.fromEntries(new FormData(form)),
+    }));
     form.addEventListener("submit", async event => {
       event.preventDefault();
       const answers = Object.fromEntries(new FormData(form));
+      const submittedDraft = drafts.get(key);
       submit.disabled = true;
       fields.forEach(field => { field.disabled = true; });
       status.textContent = "正在保存…";
       try {
-        render(await save({expected_version: view.version, probe_version: view.probe_version, answers}));
+        const saved = await save({expected_version: version, probe_version: view.probe_version, answers});
+        if (drafts.get(key) === submittedDraft) drafts.delete(key);
+        render(saved);
         const feedback = container.querySelector("[aria-label='追问反馈']");
         feedback.tabIndex = -1;
         feedback.focus();

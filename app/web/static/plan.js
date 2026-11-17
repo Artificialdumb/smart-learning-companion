@@ -52,7 +52,7 @@ export function learningPlan(plan, model, drafts, actions) {
   function render(focusId) {
     const draft = drafts.get(key);
     version.textContent = plan.adjustment_version ? `已保存 · 版本 ${plan.adjustment_version}` : "原始计划";
-    buttonEdit.hidden = Boolean(draft);
+    buttonEdit.hidden = !actions.canAdjust || Boolean(draft);
     if (!draft) {
       view.replaceChildren(list());
       if (plan.adjustment_version) {

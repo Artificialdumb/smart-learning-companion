@@ -19,7 +19,7 @@ class BatchWorkflowTests(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         self.folder = Path(tmp.name)
         self.db = self.folder / "study.sqlite3"
-        self.client = TestClient(create_app(self.db))
+        self.client = TestClient(create_app(self.db), base_url="http://127.0.0.1", client=("127.0.0.1", 50000))
         self.addCleanup(self.client.close)
         self.get_plan = "/api/students/S01/recommendations"
         self.adjust = "/api/plans/PLAN-S01-NX/teacher-adjustment"

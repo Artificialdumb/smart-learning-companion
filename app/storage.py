@@ -104,13 +104,15 @@ class Store:
         with closing(self.connect()) as db:
             return plan_view(run_id, plan, self.current_adjustment(db, run_id, plan["plan_id"]))
 
-    def adjust(self, run_id, plan_id, expected_version, edits):
+    def adjust(self, run_id, plan_id, expected_version, edits, *, authorize=None):
         with closing(self.connect()) as db, db:
             db.execute("BEGIN IMMEDIATE")
             batch = self.load(db, run_id)
             plan = batch["plans"].get(plan_id)
             if plan is None:
                 raise missing("plan_not_found", plan_id)
+            if authorize is not None:
+                authorize(batch, plan["student_id"])
             current = self.current_adjustment(db, run_id, plan_id)
             version = current[1] if current else 0
             if expected_version != version:
@@ -151,17 +153,22 @@ class Store:
         ).fetchone()
         return {"version": row[0], "result": json.loads(row[1])} if row else None
 
-    def followup(self, run_id, student_id, node_id, indicator_id):
+    def followup(self, run_id, student_id, node_id, indicator_id, *, authorize=None):
         with closing(self.connect()) as db:
             db.execute("BEGIN")
             batch = self.load(db, run_id)
+            if authorize is not None:
+                authorize(batch, student_id)
             saved = self.current_followup(db, run_id, student_id, node_id, indicator_id)
             return with_run(run_id, followup_view(batch, student_id, node_id, indicator_id, saved))
 
-    def save_followup(self, run_id, student_id, node_id, indicator_id, expected_version, probe_version, answers):
+    def save_followup(self, run_id, student_id, node_id, indicator_id, expected_version, probe_version, answers,
+                      *, authorize=None):
         with closing(self.connect()) as db, db:
             db.execute("BEGIN IMMEDIATE")
             batch = self.load(db, run_id)
+            if authorize is not None:
+                authorize(batch, student_id)
             saved = self.current_followup(db, run_id, student_id, node_id, indicator_id)
             version = saved["version"] if saved else 0
             if expected_version != version:

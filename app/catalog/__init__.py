@@ -2,6 +2,7 @@ import re
 from datetime import date
 from pathlib import Path
 
+from app._analysis import rubric_limits
 from app.catalog.locations import STANDARD_CLAUSES, TEXTBOOK_LOCATIONS, matches_verified_pdf
 from app.csv_input import index_rows, read_rows, split_ids
 
@@ -26,9 +27,6 @@ def _rubric(row):
             raise ValueError(f'{item_id}: 无法解析评分点 {line!r}')
         point_id, criterion, score = match.groups()
         points.append({'rubric_point_id': point_id, 'criterion': criterion, 'max_score': int(score)})
-    index_rows(points, 'rubric_point_id')
-    if not points or sum(p['max_score'] for p in points) != int(row['满分']):
-        raise ValueError(f'{item_id}: 评分点分值与题目满分不一致')
     return points
 
 
@@ -68,6 +66,7 @@ def build_catalog(source_dir):
                 'max_score': int(row['满分']), 'rubric_points': _rubric(row),
                 'reference_answer': row['参考答案'], 'reference_explanation': row['参考解析'],
             }
+            rubric_limits(items[resource_id])
 
     if not (Path(source_dir) / STANDARD_FILE).is_file():
         raise ValueError(f'缺少课标文件 {STANDARD_FILE}')

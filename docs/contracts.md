@@ -18,6 +18,8 @@ JSON 和 JSONL 使用 UTF-8。编号为字符串，分数和计数为整数，�
 
 作答评分状态分为 `graded`（已评分）、`pending`（待评分）、`unanswered`（未作答）。校验状态为 `valid` 或 `needs_review`。分析使用最新且 `graded + valid` 的作答，零分照常计入。指标状态分为 `supported`（有作答证据）、`insufficient`（已测但证据不足）、`not_assessed`（本节点未测）。个人覆盖和班级得分计算见 [integration.md](integration.md)。
 
+题目满分和各评分点满分须为正整数，评分点满分之和须等于题目满分。作答修订须为正整数，`steps` 须为字符串数组，无步骤时用 `[]`。有效作答的事件编号须对应学生、节点与题目，已隔离的待复核记录可保留原始身份或评分异常。
+
 A 生成的目录引用含可直接展示的 `locator`。已核实版本的课标引用另含 `section`、`clauses`，教材引用另含 `section`、`pdf_pages` 和 `printed_page_range`。PDF 页码从 1 开始，区间包含两端。学习关系的 `references` 指向支撑关系的指标与同一目录资源。
 
 ## 学习计划
@@ -38,6 +40,8 @@ A 生成的目录引用含可直接展示的 `locator`。已核实版本的课�
 ## HTTP
 
 除 `GET /api/context` 外，以下请求提供 `?run_id=<编号>`。个人诊断、个人建议和班级对比另外提供 `node_id`。
+
+共享模式使用 HTTP Basic 认证。凭据错误或缺失返回 401，当前账号没有相应权限时返回 403。`GET /api/context` 只列出可访问学生，并返回 `can_compare` 和 `can_adjust`，供网页决定是否显示班级对比与教师调整入口。实际权限由服务端在读写时检查。
 
 | 方法 | 路径 |
 |---|---|

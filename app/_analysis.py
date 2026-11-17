@@ -31,11 +31,34 @@ def cell(row):
     return row["student_id"], row["node_id"], row["item_id"]
 
 
+def validate_latest_response(row, students, items, allowed):
+    record_id, event_id, revision = (row[key] for key in ("record_id", "event_id", "revision"))
+    student, node, item = cell(row)
+    if (not isinstance(record_id, str) or not record_id.strip()
+            or not isinstance(event_id, str) or not event_id.strip()
+            or type(revision) is not int or revision < 1
+            or any(not isinstance(value, str) for value in (student, node, item))):
+        raise ValueError(f"作答身份或修订版本不符合契约: {record_id}")
+    if (not isinstance(row["steps"], list) or any(not isinstance(step, str) for step in row["steps"])
+            or (row["final_answer"] is not None and not isinstance(row["final_answer"], str))
+            or not isinstance(row["rubric_scores"], dict)):
+        raise ValueError(f"作答内容不符合契约: {record_id}")
+    status = row["validation_status"]
+    if status == "needs_review":
+        return
+    if (status != "valid" or row["scoring_status"] not in ("graded", "pending", "unanswered")
+            or event_id != f"{student}-{node}-{item}"
+            or student not in students or item not in allowed.get(node, ())
+            or ("class_id" in row and row["class_id"] != students[student]["class_id"])):
+        raise ValueError(f"有效作答的身份、范围或状态不符合契约: {record_id}")
+    if type(row["max_score"]) is not int or row["max_score"] != items[item]["max_score"]:
+        raise ValueError(f"作答满分与题目不一致: {record_id}")
+    if row["scoring_status"] != "graded" and (row["score"] is not None or row["rubric_scores"]):
+        raise ValueError(f"未评分作答不能带有成绩: {record_id}")
+
+
 def usable_by_cell(responses, students, items, allowed):
-    limits = {
-        item: {p: v["max_score"] for p, v in rubric_points(meta).items()}
-        for item, meta in items.items()
-    }
+    limits = {item: rubric_limits(meta) for item, meta in items.items()}
     valid = {}
     for row in index(responses, "record_id").values():
         student, node, item = cell(row)
@@ -68,6 +91,16 @@ def usable_by_cell(responses, students, items, allowed):
 
 def rubric_points(item):
     return index(item["rubric_points"], "rubric_point_id")
+
+
+def rubric_limits(item):
+    limits = {point: row["max_score"] for point, row in rubric_points(item).items()}
+    maximum = item["max_score"]
+    if (not limits or type(maximum) is not int or maximum <= 0
+            or any(type(value) is not int or value <= 0 for value in limits.values())
+            or sum(limits.values()) != maximum):
+        raise ValueError(f"{item['item_id']}: 评分点分值与题目满分不一致或分值无效")
+    return limits
 
 
 def totals(rows):

@@ -130,7 +130,7 @@ class PipelineTests(unittest.TestCase):
         db = self.work / 'study.sqlite3'
         direct_run = build(SOURCE, db, reviews_path=reviews)
         imported_run = build(snapshot, db)
-        with TestClient(create_app(db)) as client:
+        with TestClient(create_app(db), base_url="http://127.0.0.1", client=("127.0.0.1", 50000)) as client:
             for run in (direct_run, imported_run):
                 params = {'run_id': run}
                 evidence = client.get('/api/records/DR0361', params=params)

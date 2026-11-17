@@ -19,6 +19,7 @@ let model;
 let renderStamp = 0;
 let detailStamp = 0;
 const drafts = new Map();
+const followupDrafts = new Map();
 
 async function api(path, {node, init} = {}) {
   const params = new URLSearchParams();
@@ -58,12 +59,17 @@ function resource(id) {
   detail(`材料 ${id}`, async () => resourceDetails(await api(`/resources/${encodeURIComponent(id)}`), model));
 }
 
-function record(id, evidence) {
-  detail(`作答证据 ${id}`, async () => recordDetails(await api(`/records/${encodeURIComponent(id)}`), evidence));
+function record(id, evidence, back) {
+  detail(`作答证据 ${id}`, async () => [
+    back ? button("返回错因追问", back) : null,
+    ...recordDetails(await api(`/records/${encodeURIComponent(id)}`), evidence),
+  ]);
 }
 
 function page() {
   const name = window.location.hash.slice(1);
+  if (name === "classes" && !context.can_compare) return context.students.length ? "student" : "catalog";
+  if (!context.students.length) return "catalog";
   return Object.hasOwn(pages, name) ? name : "student";
 }
 
@@ -105,6 +111,7 @@ async function render() {
         row.findings.map(finding => [finding.finding_id, finding])));
       const actions = {
         latest, resource,
+        canAdjust: context.can_adjust,
         finding(id) {
           const finding = findings.get(id);
           detail("诊断依据", async () => [el("p", {}, finding.summary), evidenceButtons(finding.evidence, record)]);
@@ -122,7 +129,7 @@ async function render() {
         detail(`错因追问 · ${model.indicators.get(indicator)?.description ?? indicator}`, async () => [
           followupPanel(await reload(), body => api(endpoint, {node, init: {
             method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body),
-          }}), reload, record),
+          }}), reload, (id, evidence) => record(id, evidence, () => openFollowup(indicator)), followupDrafts),
         ]);
       };
       const openPath = indicator => detail("前置知识补学路径", async () => {
@@ -152,6 +159,8 @@ async function initialize() {
   message("正在读取当前批次…");
   try {
     context = await api("/context");
+    document.querySelector('[data-view="classes"]').hidden = !context.can_compare;
+    document.querySelector('[data-view="student"]').hidden = !context.students.length;
     catalog = await api("/catalog");
     model = {
       indicators: new Map(context.indicators.map(row => [row.indicator_id, row])),
@@ -177,4 +186,10 @@ async function initialize() {
   }
 }
 
+document.querySelector(".skip-link").addEventListener("click", event => {
+  event.preventDefault();
+  const workspace = document.getElementById("workspace");
+  workspace.focus();
+  workspace.scrollIntoView();
+});
 initialize();

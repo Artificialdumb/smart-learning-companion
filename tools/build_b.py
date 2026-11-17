@@ -29,7 +29,7 @@ def build(source, out):
         ],
         "class_comparison.json": [{"run_id": run_id, **report} for report in comparisons.values()],
     }
-    out.mkdir()
+    out.mkdir(parents=True)
     for name, rows in outputs.items():
         (out / name).write_text(
             json.dumps(rows, ensure_ascii=False, indent=2, allow_nan=False) + "\n", encoding="utf-8"

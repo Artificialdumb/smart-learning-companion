@@ -62,6 +62,27 @@ python -m app.cli export --run-id <批次编号> --out outputs/成果包
 - 默认离线。可选设置 `STUDY_MODEL` 为本地 OpenAI 兼容模型名，`STUDY_MODEL_PORT` 默认 11434，服务需要凭据时设置 `STUDY_MODEL_KEY`。构建只向回环地址发送活动类别、指标编号和候选材料编号。模型可从已校验的候选中选择，异常或无效结果使用规则首选。提示和复查条件由模板提供。
 - 运行于本地演示环境。资源和作答按赛题使用范围保存在本地。提交前按赛题要求核对成果包中的记录及引用材料范围。
 
+### 共享服务配置
+
+本机演示沿用 README 中的 `127.0.0.1` 命令。只有来自回环地址且使用本机地址访问的请求可使用演示权限。共享服务设置 `STUDY_ACCESS_FILE` 指向仅服务进程可读的本地 JSON 文件。修改账号后重启应用。
+
+```json
+{
+  "teacher1": {"role": "teacher", "class_ids": ["SX", "SY"], "token_sha256": "<教师访问令牌的 SHA-256 小写十六进制>"},
+  "student1": {"role": "student", "student_id": "S01", "token_sha256": "<学生访问令牌的 SHA-256 小写十六进制>"}
+}
+```
+
+为每个账号生成独立的随机令牌。命令输出第一行为用户登录时输入的令牌，第二行为写入账号文件的摘要。
+
+```sh
+python -c 'import hashlib, secrets; token = secrets.token_urlsafe(32); print(token); print(hashlib.sha256(token.encode()).hexdigest())'
+```
+
+文件放在仓库忽略的本地 `data/` 中（例如 `data/access.json`）或部署端的私有配置目录。通过 HTTPS 暴露服务，例如用 Uvicorn 配置 TLS 证书和私钥。反向代理部署时，只信任实际代理来源，并避免客户端直接访问后端端口。浏览器首次打开首页时会弹出账号和令牌输入框。
+
+学生可查看本人诊断、证据和计划，并提交本人的追问。教师可读写授权班级的学习计划和追问，班级对比需同时获得两个班的权限。权限按请求对应批次的名册核对，GitHub 仓库成员身份与应用账号分别管理。
+
 ### 复核原始作答
 
 在本地 `data/` 保存 UTF-8 复核 JSON。`source_sha256` 填首次构建生成的 `quality_report.json` 中的 `response_source_sha256`。每条 `decisions` 对应一条需复核的最新记录，填写 `record_id`、整数 `revision`、`action` 和 `reason`。确认排除用 `exclude`。确认更正用 `correct`，并在 `changes` 填入原 CSV 字段名及字符串值。可改字段为 `主题编号`、`评分状态`、`得分`、`满分`、`评分点得分`。学生、节点、题目或事件归属冲突应在来源数据核实后重导。复核文件和原始作答的摘要必须匹配。

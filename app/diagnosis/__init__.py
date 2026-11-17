@@ -2,7 +2,7 @@ import re
 import unicodedata
 from collections import defaultdict
 
-from .._analysis import assessment_scope, cell, index, rubric_points, totals, usable_by_cell
+from .._analysis import assessment_scope, cell, index, rubric_points, totals, usable_by_cell, validate_latest_response
 
 
 def diagnose_students(catalog, students, latest_responses, usable_responses):
@@ -12,6 +12,7 @@ def diagnose_students(catalog, students, latest_responses, usable_responses):
     usable = usable_by_cell(usable_responses, roster, items, allowed)
     latest = defaultdict(list)
     for row in index(latest_responses, "record_id").values():
+        validate_latest_response(row, roster, items, allowed)
         student, node, item = cell(row)
         if student in roster and item in allowed.get(node, ()):
             latest[student, node, item].append(row)

@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import FastAPI, Query, Request
+from fastapi import Depends, FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -16,6 +16,7 @@ from app.contracts import ContractError, with_run
 from app.diagnosis.paths import learning_paths
 from app.recommendations import plan_id
 from app.storage import Store, missing
+from app.web.access import Access, load_accounts, require_access
 
 STATIC = Path(__file__).with_name("static")
 QueryId = Annotated[str, Query(min_length=1)]
@@ -62,8 +63,18 @@ def public_resource(row):
 
 def create_app(db_path=None):
     store = Store(Path(db_path or os.environ.get("STUDY_DB", DEFAULT_DB)))
-    app = FastAPI(title="智慧学伴")
+    access_file = os.environ.get("STUDY_ACCESS_FILE")
+    authenticate = require_access(load_accounts(access_file) if access_file else None)
+    Actor = Annotated[Access, Depends(authenticate)]
+    app = FastAPI(title="智慧学伴", dependencies=[Depends(authenticate)])
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
+
+    @app.middleware("http")
+    async def private_response(request, call_next):
+        response = await call_next(request)
+        if not request.url.path.startswith("/static/"):
+            response.headers["Cache-Control"] = "no-store"
+        return response
 
     @app.exception_handler(ContractError)
     def contract_error(request: Request, error: ContractError):
@@ -85,13 +96,15 @@ def create_app(db_path=None):
         return FileResponse(STATIC / "index.html")
 
     @app.get("/api/context")
-    def context():
+    def context(actor: Actor):
         batch = store.current()
         catalog = batch["catalog"]
-        students = list(batch["students"].values())
+        students = [row for row in batch["students"].values() if actor.can_view(row)]
         return with_run(batch["manifest"]["run_id"], {
             "students": students,
             "classes": sorted({row["class_id"] for row in students}),
+            "can_compare": actor.can_compare({row["class_id"] for row in batch["students"].values()}),
+            "can_adjust": actor.role in {"teacher", "demo"},
             "nodes": list(index(catalog["nodes"], "node_id").values()),
             "topics": list(index(catalog["topics"], "topic_id").values()),
             "indicators": list(index(catalog["indicators"], "indicator_id").values()),
@@ -113,36 +126,43 @@ def create_app(db_path=None):
         })
 
     @app.get("/api/students/{student_id}/diagnosis")
-    def diagnosis(student_id: str, run_id: QueryId, node_id: QueryId):
-        reports = lookup(store.batch(run_id)["diagnoses"], student_id, "student_not_found")
+    def diagnosis(student_id: str, run_id: QueryId, node_id: QueryId, actor: Actor):
+        batch = store.batch(run_id)
+        actor.require_student(batch, student_id)
+        reports = lookup(batch["diagnoses"], student_id, "student_not_found")
         return with_run(run_id, lookup(reports, node_id, "node_not_found"))
 
     @app.get("/api/students/{student_id}/learning-paths")
-    def paths(student_id: str, run_id: QueryId, node_id: QueryId):
+    def paths(student_id: str, run_id: QueryId, node_id: QueryId, actor: Actor):
         batch = store.batch(run_id)
+        actor.require_student(batch, student_id)
         reports = lookup(batch["diagnoses"], student_id, "student_not_found")
         lookup(reports, node_id, "node_not_found")
         return with_run(run_id, learning_paths(batch["catalog"], reports, node_id))
 
     @app.get("/api/students/{student_id}/followups/{indicator_id}")
-    def followup(student_id: str, indicator_id: str, run_id: QueryId, node_id: QueryId):
-        return store.followup(run_id, student_id, node_id, indicator_id)
+    def followup(student_id: str, indicator_id: str, run_id: QueryId, node_id: QueryId, actor: Actor):
+        return store.followup(run_id, student_id, node_id, indicator_id, authorize=actor.require_student)
 
     @app.put("/api/students/{student_id}/followups/{indicator_id}")
     def answer_followup(student_id: str, indicator_id: str, run_id: QueryId, node_id: QueryId,
-                        request: FollowupAnswers):
+                        request: FollowupAnswers, actor: Actor):
         return store.save_followup(run_id, student_id, node_id, indicator_id, request.expected_version,
-                                   request.probe_version, request.answers)
+                                   request.probe_version, request.answers, authorize=actor.require_student)
 
     @app.get("/api/classes/compare")
-    def compare(run_id: QueryId, node_id: QueryId):
-        report = lookup(store.batch(run_id)["comparisons"], node_id, "node_not_found")
+    def compare(run_id: QueryId, node_id: QueryId, actor: Actor):
+        batch = store.batch(run_id)
+        if not actor.can_compare({row["class_id"] for row in batch["students"].values()}):
+            raise ContractError("forbidden", "班级对比需要两个班的访问权限。", 403)
+        report = lookup(batch["comparisons"], node_id, "node_not_found")
         return with_run(run_id, report)
 
     @app.get("/api/records/{record_id}")
-    def record(record_id: str, run_id: QueryId):
+    def record(record_id: str, run_id: QueryId, actor: Actor):
         batch = store.batch(run_id)
         row = lookup(batch["records"], record_id, "record_not_found")
+        actor.require_student(batch, row["student_id"])
         item = index(batch["catalog"]["items"], "item_id").get(row["item_id"])
         points = rubric_points(item).values() if item else ()
         return with_run(run_id, {
@@ -174,17 +194,20 @@ def create_app(db_path=None):
         return with_run(run_id, view)
 
     @app.get("/api/students/{student_id}/recommendations")
-    def recommendations(student_id: str, run_id: QueryId, node_id: QueryId):
+    def recommendations(student_id: str, run_id: QueryId, node_id: QueryId, actor: Actor):
         batch = store.batch(run_id)
+        actor.require_student(batch, student_id)
         lookup(batch["students"], student_id, "student_not_found")
         lookup(batch["comparisons"], node_id, "node_not_found")
         plan = lookup(batch["plans"], plan_id(student_id, node_id), "plan_not_found")
         return store.plan(run_id, plan)
 
     @app.put("/api/plans/{plan_id}/teacher-adjustment")
-    def teacher_adjustment(plan_id: str, run_id: QueryId, request: PlanAdjustment):
+    def teacher_adjustment(plan_id: str, run_id: QueryId, request: PlanAdjustment, actor: Actor):
+        if actor.role == "student":
+            raise ContractError("forbidden", "只有教师可以调整学习计划。", 403)
         return store.adjust(run_id, plan_id, request.expected_version,
-                            [activity.model_dump() for activity in request.activities])
+                            [activity.model_dump() for activity in request.activities], authorize=actor.require_student)
 
     return app
 
