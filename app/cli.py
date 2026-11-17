@@ -16,6 +16,8 @@ from app.a_pipeline import load_csv_batch
 from app.class_analysis import compare_classes
 from app.contracts import encode_json, usable_rows, with_run
 from app.diagnosis import diagnose_students
+from app.diagnosis.paths import learning_paths, prerequisite_graph
+from app.diagnosis.probes import PROBE_VERSION
 from app.recommendations import generate_plans, resource_index
 from app.recommendations.local_model import local_selector
 from app.storage import Store
@@ -83,6 +85,7 @@ def validate_catalog(catalog):
     for relation in catalog.get("learning_relations", []):
         if not {relation["from_indicator_id"], relation["to_indicator_id"]} <= indicators.keys():
             raise ValueError("学习关系引用了未知指标。")
+    prerequisite_graph(catalog)
     return {**catalog, "resources": list(resources.values())}
 
 
@@ -114,6 +117,7 @@ def build(source, db, *, reviews_path=None):
         **input_manifest, "input_run_id": input_manifest["run_id"],
         "built_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "recommendation_rules_version": RECOMMENDATION_RULES,
+        "followup_probe_version": PROBE_VERSION,
         "recommendation_mode": "local_model_with_rule_fallback" if selector else "rules",
     })
     Store(db).publish({
@@ -176,6 +180,11 @@ def export(db, run_id, out):
         "diagnosis.json": [with_run(run_id, report) for nodes in diagnoses.values() for report in nodes.values()],
         "class_comparison.json": [with_run(run_id, report) for report in batch["comparisons"].values()],
         "recommendations.json": plans,
+        "followups.json": batch["followups"],
+        "learning_paths.json": [
+            with_run(run_id, learning_paths(catalog, reports, node_id))
+            for reports in diagnoses.values() for node_id in reports
+        ],
         "cases.json": case_examples(diagnoses, plans),
     }
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -198,7 +207,9 @@ def export(db, run_id, out):
             "按 record_id 在 responses.jsonl 回查作答，按题号或材料编号在 catalog.json 回查出处。\n"
             "contracts.md 提供字段说明，integration.md 提供构建、复核和展示步骤。\n"
             "用 python -m app.cli build --source <成果包目录> 可从标准化输入复算初始分析。"
-            "教师调整的快照保存在 recommendations.json。\n",
+            "教师调整的快照保存在 recommendations.json。"
+            "followups.json 保存各指标最近一次追问及反馈，learning_paths.json 保存前置知识补学路径。"
+            "重建只复算初始分析，不导入教师调整和补充追问。\n",
             encoding="utf-8",
         )
         staging.rename(out)

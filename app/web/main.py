@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app._analysis import index, rubric_points
 from app.cli import DEFAULT_DB
 from app.contracts import ContractError, with_run
+from app.diagnosis.paths import learning_paths
 from app.recommendations import plan_id
 from app.storage import Store, missing
 
@@ -35,6 +36,14 @@ class PlanAdjustment(BaseModel):
 
     expected_version: int = Field(ge=0)
     activities: list[ActivityEdit]
+
+
+class FollowupAnswers(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    expected_version: int = Field(ge=0)
+    probe_version: str = Field(min_length=1, max_length=60)
+    answers: dict[str, str] = Field(min_length=3, max_length=3)
 
 
 def lookup(values, key, code):
@@ -107,6 +116,23 @@ def create_app(db_path=None):
     def diagnosis(student_id: str, run_id: QueryId, node_id: QueryId):
         reports = lookup(store.batch(run_id)["diagnoses"], student_id, "student_not_found")
         return with_run(run_id, lookup(reports, node_id, "node_not_found"))
+
+    @app.get("/api/students/{student_id}/learning-paths")
+    def paths(student_id: str, run_id: QueryId, node_id: QueryId):
+        batch = store.batch(run_id)
+        reports = lookup(batch["diagnoses"], student_id, "student_not_found")
+        lookup(reports, node_id, "node_not_found")
+        return with_run(run_id, learning_paths(batch["catalog"], reports, node_id))
+
+    @app.get("/api/students/{student_id}/followups/{indicator_id}")
+    def followup(student_id: str, indicator_id: str, run_id: QueryId, node_id: QueryId):
+        return store.followup(run_id, student_id, node_id, indicator_id)
+
+    @app.put("/api/students/{student_id}/followups/{indicator_id}")
+    def answer_followup(student_id: str, indicator_id: str, run_id: QueryId, node_id: QueryId,
+                        request: FollowupAnswers):
+        return store.save_followup(run_id, student_id, node_id, indicator_id, request.expected_version,
+                                   request.probe_version, request.answers)
 
     @app.get("/api/classes/compare")
     def compare(run_id: QueryId, node_id: QueryId):

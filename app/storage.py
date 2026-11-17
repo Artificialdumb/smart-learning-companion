@@ -5,6 +5,7 @@ import sqlite3
 from contextlib import closing
 
 from app.contracts import ContractError, encode_json, with_run
+from app.diagnosis.followup import evaluate_followup, followup_view
 from app.recommendations import validate_adjustment
 
 SCHEMA = """
@@ -22,6 +23,15 @@ CREATE TABLE IF NOT EXISTS adjustments (
     version INTEGER NOT NULL CHECK (version > 0),
     activities TEXT NOT NULL,
     PRIMARY KEY (run_id, plan_id)
+);
+CREATE TABLE IF NOT EXISTS followups (
+    run_id TEXT NOT NULL REFERENCES batches(run_id),
+    student_id TEXT NOT NULL,
+    node_id TEXT NOT NULL,
+    indicator_id TEXT NOT NULL,
+    version INTEGER NOT NULL CHECK (version > 0),
+    result TEXT NOT NULL,
+    PRIMARY KEY (run_id, student_id, node_id, indicator_id)
 );
 """
 
@@ -125,4 +135,43 @@ class Store:
                 )
             }
             plans = [plan_view(run_id, plan, adjustments.get(pid)) for pid, plan in batch["plans"].items()]
+            batch["followups"] = [with_run(run_id, {
+                "student_id": student, "node_id": node, "indicator_id": indicator,
+                "version": version, "result": json.loads(result),
+            }) for student, node, indicator, version, result in db.execute(
+                "SELECT student_id, node_id, indicator_id, version, result FROM followups "
+                "WHERE run_id = ? ORDER BY student_id, node_id, indicator_id", (run_id,)
+            )]
             return batch, plans
+
+    def current_followup(self, db, run_id, student_id, node_id, indicator_id):
+        row = db.execute(
+            "SELECT version, result FROM followups WHERE run_id = ? AND student_id = ? "
+            "AND node_id = ? AND indicator_id = ?", (run_id, student_id, node_id, indicator_id),
+        ).fetchone()
+        return {"version": row[0], "result": json.loads(row[1])} if row else None
+
+    def followup(self, run_id, student_id, node_id, indicator_id):
+        with closing(self.connect()) as db:
+            db.execute("BEGIN")
+            batch = self.load(db, run_id)
+            saved = self.current_followup(db, run_id, student_id, node_id, indicator_id)
+            return with_run(run_id, followup_view(batch, student_id, node_id, indicator_id, saved))
+
+    def save_followup(self, run_id, student_id, node_id, indicator_id, expected_version, probe_version, answers):
+        with closing(self.connect()) as db, db:
+            db.execute("BEGIN IMMEDIATE")
+            batch = self.load(db, run_id)
+            saved = self.current_followup(db, run_id, student_id, node_id, indicator_id)
+            version = saved["version"] if saved else 0
+            if expected_version != version:
+                raise ContractError("version_conflict", "追问记录已更新，请重新打开后再提交。", 409)
+            result = evaluate_followup(batch, student_id, node_id, indicator_id, probe_version, answers)
+            db.execute(
+                "INSERT INTO followups VALUES (?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT (run_id, student_id, node_id, indicator_id) DO UPDATE SET "
+                "version=excluded.version, result=excluded.result",
+                (run_id, student_id, node_id, indicator_id, version + 1, encode_json(result)),
+            )
+            return with_run(run_id, followup_view(batch, student_id, node_id, indicator_id,
+                                                 {"version": version + 1, "result": result}))

@@ -93,7 +93,12 @@ thead { background: var(--background); }
 dialog { width: min(100% - 2rem, 42rem); max-height: 85vh; background: white; color: var(--ink); border: 1px solid var(--line); border-radius: .625rem; padding: 0; }
 dialog::backdrop { background: rgb(14 31 53 / .55); }
 .dialog-head { display: flex; justify-content: space-between; align-items: center; gap: .75rem; padding: 1rem 1.25rem; border-bottom: 1px solid var(--line); }
+.dialog-head button { flex-shrink: 0; white-space: nowrap; }
 #detail-body { padding: 1rem 1.25rem; overflow-wrap: anywhere; }
+.probe-option { display: flex; align-items: baseline; gap: .5rem; padding: .5rem 0; cursor: pointer; }
+.probe-option input { flex: none; }
+.path-list > li { padding: .75rem 0; }
+.path-list .tags { margin-top: .5rem; }
 @media (max-width: 52rem) {
   .workspace { grid-template-columns: minmax(0, 1fr); }
   .mobile-jump { display: block; justify-self: start; }

@@ -1,4 +1,5 @@
 import {learningPlan} from "./plan.js";
+import {followupPanel, pathDetails} from "./followup.js";
 import {catalogPanel, classesPanel, diagnosisPanel, evidenceButtons, recordDetails, resourceDetails} from "./reports.js";
 import {button, el, setOptions} from "./ui.js";
 
@@ -115,11 +116,26 @@ async function render() {
         }),
       };
       const planPanel = learningPlan(plan, model, drafts, actions);
+      const openFollowup = indicator => {
+        const endpoint = `${path}/followups/${encodeURIComponent(indicator)}`;
+        const reload = () => api(endpoint, {node});
+        detail(`错因追问 · ${model.indicators.get(indicator)?.description ?? indicator}`, async () => [
+          followupPanel(await reload(), body => api(endpoint, {node, init: {
+            method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body),
+          }}), reload, record),
+        ]);
+      };
+      const openPath = indicator => detail("前置知识补学路径", async () => {
+        const data = await api(`${path}/learning-paths`, {node});
+        const selected = data.paths.find(p => p.target_indicator_id === indicator);
+        return selected ? pathDetails(selected, model, resource, record)
+          : [el("p", {}, data.empty_reason ?? "当前指标没有可用补学路径。")];
+      });
       const planTitle = planPanel.querySelector("h2");
       planTitle.tabIndex = -1;
       results = el("div", {class: "workspace"},
         button("跳到学习计划", () => planTitle.focus(), "secondary mobile-jump"),
-        diagnosisPanel(report, model, record), planPanel);
+        diagnosisPanel(report, model, record, openFollowup, openPath), planPanel);
     }
     if (stamp === renderStamp) {
       dom.content.replaceChildren(results);

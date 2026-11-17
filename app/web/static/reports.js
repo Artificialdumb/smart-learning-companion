@@ -7,7 +7,7 @@ export function evidenceButtons(entries, openRecord) {
   )));
 }
 
-export function diagnosisPanel(report, model, openRecord) {
+export function diagnosisPanel(report, model, openRecord, openFollowup, openPath) {
   const indicators = [...report.indicators].sort((a, b) => {
     const priority = row => row.findings.some(f => f.evidence.some(e => e.step_numbers?.length))
       ? 0 : ({supported: 1, insufficient: 2, not_assessed: 3})[row.evidence_status];
@@ -24,6 +24,9 @@ export function diagnosisPanel(report, model, openRecord) {
         el("summary", {}, `诊断发现（${row.findings.length}）`),
         row.findings.map(finding => el("div", {class: "findings"},
           el("p", {}, finding.summary), evidenceButtons(finding.evidence, openRecord)))) : null,
+      row.findings.some(f => f.kind === "practice_needed") ? el("div", {class: "actions findings"},
+        button("错因追问", () => openFollowup(row.indicator_id)),
+        button("查看补学路径", () => openPath(row.indicator_id))) : null,
       (row.pending_count || row.unanswered_count || row.review_count || row.missing_record_count)
         ? el("details", {}, el("summary", {}, "覆盖明细"),
           el("p", {class: "meta"},
