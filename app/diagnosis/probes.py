@@ -1,7 +1,18 @@
 """Original, fixed screening questions; answer keys stay on the server."""
 
-PROBE_VERSION = "screening-1.0"
+from app.rules import load_rules
+
+PROBE_VERSION = "screening-1.1"
 DIMENSIONS = {"concept": "概念理解", "calculation": "计算执行", "reading": "条件理解"}
+LABELS = {**DIMENSIONS, "consistency": "过程与作答一致"}
+
+
+def criterion_dimension(criterion, cues=None):
+    """Dimension of a rubric criterion; rules.json lists cues in match order, first hit wins."""
+    for dimension, words in cues or load_rules()["followup"]["criterion_cues"]:
+        if any(word in criterion for word in words):
+            return dimension
+    return None
 
 # Each profile has one concept, calculation and reading probe, in that order.
 PROFILES = {
@@ -73,18 +84,9 @@ PROFILES = {
 
 
 def profile_for(description):
-    # shortcut: 按已覆盖的课程描述选择固定题组，新增学科前须补充并审阅题组。
-    for cues, profile in (
-        (("交集",), "intersection"),
-        (("列不等式", "实际限制"), "constraint"),
-        (("不等式性质", "负数乘除"), "inequality"),
-        (("列方程",), "model"),
-        (("消元",), "system"),
-        (("一元一次方程",), "equation"),
-        (("去括号", "同类项", "化简"), "expressions"),
-        (("数量关系", "代入求值", "整式解释", "解释表达式"), "quantity"),
-    ):
-        if any(cue in description for cue in cues):
+    # 按 rules.json 中 followup.profile_cues 的顺序匹配课程描述；新增学科前须补充并审阅题组。
+    for profile, cues in load_rules()["followup"]["profile_cues"]:
+        if profile in PROFILES and any(cue in description for cue in cues):
             return profile
     return None
 

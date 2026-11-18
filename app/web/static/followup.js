@@ -1,7 +1,8 @@
 import {evidenceButtons} from "./reports.js";
 import {button, el, labels} from "./ui.js";
 
-const dimensions = {concept: "概念理解", calculation: "计算执行", reading: "条件理解"};
+const dimensions = {concept: "概念理解", calculation: "计算执行", reading: "条件理解", consistency: "过程与作答一致"};
+const dimensionName = row => row.dimension_label ?? dimensions[row.dimension] ?? row.dimension;
 const outcomes = {pass: "本题通过", gap: "需核查", uncertain: "未确定"};
 
 export function followupPanel(initial, save, reload, openRecord, drafts) {
@@ -14,7 +15,7 @@ export function followupPanel(initial, save, reload, openRecord, drafts) {
       el("p", {class: "meta"}, new Date(result.submitted_at).toLocaleString("zh-CN")),
       el("p", {}, result.conclusion),
       el("ul", {}, result.checks.map(check => el("li", {},
-        `${dimensions[check.dimension]}：${outcomes[check.outcome]}`,
+        `${dimensionName(check)}：${outcomes[check.outcome]}`,
         el("details", {}, el("summary", {}, "本题反馈"), el("p", {}, check.prompt),
           el("p", {}, `你的选择：${check.options.find(o => o.option_id === check.selected_option_id)?.text ?? "不确定"}`),
           el("p", {}, check.explanation))))),
@@ -23,13 +24,19 @@ export function followupPanel(initial, save, reload, openRecord, drafts) {
       container.replaceChildren(el("p", {}, view.unavailable_reason), ...(output ? [output] : []));
       return;
     }
+    const linked = view.linked_rubric_points ?? [];
     const form = el("form", {}, el("p", {class: "meta"},
-      "请学生独立完成这 3 道小题；不确定时如实选择。提交后保存反馈，不改变原测验分数。"));
+      `请学生独立完成这 ${view.questions.length} 道小题；不确定时如实选择。提交后保存反馈，不改变原测验分数。`),
+      linked.length ? el("p", {class: "meta"}, "本次失分评分点：",
+        linked.map(p => `${p.rubric_point_id} ${p.criterion}${p.dimension ? `（${dimensions[p.dimension]}）` : ""}`).join("；"),
+        "。标注“关联失分点”的小题优先核查。") : null);
     const draft = drafts.get(key);
     const version = draft?.probe_version === view.probe_version ? draft.version : view.version;
     const selections = draft?.probe_version === view.probe_version ? draft.answers : {};
     const fields = view.questions.map((question, i) => el("fieldset", {},
       el("legend", {}, `${i + 1}. ${question.prompt}`),
+      el("p", {class: "meta"}, dimensionName(question),
+        question.focus ? ` · 关联失分点 ${(question.rubric_point_ids ?? []).join("、")}` : ""),
       [...question.options, {option_id: "unsure", text: "不确定"}].map(option =>
         el("label", {class: "probe-option"},
           el("input", {type: "radio", name: question.question_id, value: option.option_id, required: "",

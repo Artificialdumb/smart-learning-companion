@@ -3,12 +3,16 @@ import unicodedata
 from collections import defaultdict
 
 from .._analysis import assessment_scope, cell, index, rubric_points, totals, usable_by_cell, validate_latest_response
+from ..rules import load_rules
+from . import mastery
 
 
-def diagnose_students(catalog, students, latest_responses, usable_responses):
+def diagnose_students(catalog, students, latest_responses, usable_responses, *, mastery_config=None):
     """Return diagnostics indexed by student_id and then by node_id."""
+    mastery_config = mastery_config or load_rules()["mastery"]
     roster = index(students, "student_id")
     items, allowed, scope = assessment_scope(catalog)
+    node_dates = {nid: node.get("assessment_date") for nid, node in index(catalog["nodes"], "node_id").items()}
     usable = usable_by_cell(usable_responses, roster, items, allowed)
     latest = defaultdict(list)
     for row in index(latest_responses, "record_id").values():
@@ -46,6 +50,7 @@ def diagnose_students(catalog, students, latest_responses, usable_responses):
     for student in sorted(roster):
         result[student] = {}
         for node, indicators in sorted(scope.items()):
+            history = mastery.cumulative_rows(usable, student, node, scope, node_dates)
             summaries = []
             for indicator, item_ids in indicators.items():
                 coverage = dict.fromkeys(
@@ -72,6 +77,7 @@ def diagnose_students(catalog, students, latest_responses, usable_responses):
                         "supported" if rows else "insufficient" if item_ids else "not_assessed"
                     ),
                     "findings": findings,
+                    "mastery": mastery.estimate(history.get(indicator, []), mastery_config),
                 })
             result[student][node] = {"student_id": student, "node_id": node, "indicators": summaries}
     return result
@@ -136,7 +142,8 @@ def result_sign_mismatch(row, item, points, missed, passed):
     steps = row["steps"]
     if len(missed) != 1 or not steps or not passed:
         return None
-    if len(passed) != len(points) - 1 or "结果" not in points[missed[0]]["criterion"]:
+    keyword = load_rules()["diagnosis"]["result_criterion_keyword"]
+    if len(passed) != len(points) - 1 or keyword not in points[missed[0]]["criterion"]:
         return None
 
     def normalize(value):

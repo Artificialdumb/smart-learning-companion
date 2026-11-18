@@ -44,7 +44,7 @@ class FollowupAnswers(BaseModel):
 
     expected_version: int = Field(ge=0)
     probe_version: str = Field(min_length=1, max_length=60)
-    answers: dict[str, str] = Field(min_length=3, max_length=3)
+    answers: dict[str, str] = Field(min_length=3, max_length=4)
 
 
 def lookup(values, key, code):

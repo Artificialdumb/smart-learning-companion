@@ -6,25 +6,14 @@ from collections import defaultdict
 
 from app._analysis import index, rubric_points
 from app.contracts import ContractError
+from app.rules import load_rules
 
 KIND_ORDER = {"practice_needed": 0, "strength": 1, "observe_more": 2}
 RESOURCE_TYPES = {"item", "learning_card", "textbook"}
-SKILL_CUES = (
-    (("化简", "去括号", "合并"), "先标出括号前的符号，逐项检查去括号和合并。",
-     "独立化简，检查各项符号，并让过程末行与最终作答一致。"),
-    (("交集",), "先分别标出各条件的取值范围，再检查哪些值同时满足条件。",
-     "独立写出公共解集，并说明每个边界能否取到。"),
-    (("负数乘除",), "逐步记录两边所做的运算，检查何时需要改变不等号方向。",
-     "独立写出解集，代入边界内外各一个数检验方向。"),
-    (("列不等式",), "先标出数量限制，判断它对应范围的哪一端。",
-     "独立列式，解释端点和实际数量的取值限制。"),
-    (("消元",), "先选要消去的未知数，检查代入或加减时各项是否对齐。",
-     "保留消元过程，将所得数值代回两个原条件检验。"),
-    (("方程",), "先写清等量关系，再检查每一步变形是否保持相等。",
-     "保留变形过程，将求得的值代回原条件检验。"),
-    (("数量关系", "代入", "取值"), "先写出各量的含义和条件，再检查式子是否对应题意。",
-     "独立列式，解释结果与原条件的对应关系。"),
-)
+
+
+def _rules():
+    return load_rules()["recommendations"]
 
 
 def normalize(text):
@@ -128,17 +117,20 @@ def choose_finding(summary, evidence, records):
 
 def choose_resource(candidates, kind, items, source, attempted, description, used):
     source_prompt = normalize(source.get("prompt", ""))
+    rules = _rules()
+    form, transfer_rule = rules["matched_form_keyword"], rules["transfer"]
 
     def rank(resource):
         rid = resource["resource_id"]
         item = items.get(rid, {})
         prompt = normalize(item.get("prompt", ""))
         matched_form = (
-            "化简" in source_prompt and "化简" in prompt
+            form in source_prompt and form in prompt
             and bool(re.search(r"-\d*\(", prompt))
             and prompt.count("(") == source_prompt.count("(")
         )
-        transfer = kind == "strength" and "交集" in description and "复合不等式" in prompt
+        transfer = (kind == "strength" and transfer_rule["indicator_keyword"] in description
+                    and transfer_rule["item_keyword"] in prompt)
         return (
             rid in used, rid == source.get("item_id"),
             resource["resource_type"] != "item", rid in attempted,
@@ -152,11 +144,12 @@ def choose_resource(candidates, kind, items, source, attempted, description, use
 
 def activity_text(kind, resource, description, finding, item):
     rid = resource["resource_id"]
-    cue = next(((hint, condition) for words, hint, condition in SKILL_CUES
-                if any(word in description for word in words)), (
-        "先圈出题目给出的条件，写出每一步的依据。",
-        "独立完成一遍，保留过程并按原条件检验。",
-    ))
+    rules = _rules()
+    default = rules["default_cue"]
+    cue = next(((row["hint"], row["condition"]) for row in rules["skill_cues"]
+                if any(word in description for word in row["keywords"])),
+               (default["hint"], default["condition"]))
+    transfer = rules["transfer"]
     if resource["resource_type"] != "item":
         return (
             f"复习与该指标对应的材料 {rid}，再用自己的例子检查理解。",
@@ -175,9 +168,9 @@ def activity_text(kind, resource, description, finding, item):
         )
     elif kind == "strength":
         reason = f"已有多道满分作答支持当前表现，用 {rid} 检查能否迁移到新题。"
-        if "复合不等式" in item.get("prompt", "") and "交集" in description:
-            reason = f"已有多道满分作答支持取交集的表现，用 {rid} 检查能否迁移到复合不等式。"
-            followup = "标出两个端点，分别说明能否取到。"
+        if transfer["item_keyword"] in item.get("prompt", "") and transfer["indicator_keyword"] in description:
+            reason = transfer["reason"].format(resource_id=rid)
+            followup = transfer["followup"]
         else:
             followup = "写出与之前题目不同的条件，再解释所用方法。"
     else:

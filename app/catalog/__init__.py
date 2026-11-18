@@ -5,16 +5,15 @@ from pathlib import Path
 from app._analysis import rubric_limits
 from app.catalog.locations import STANDARD_CLAUSES, TEXTBOOK_LOCATIONS, matches_verified_pdf
 from app.csv_input import index_rows, read_rows, split_ids
+from app.rules import curriculum
 
-
-STANDARD_FILE = '5_课程标准及相关教学资源/课程标准_2022.pdf'
-TEXTBOOKS = {'T01': 'B05', 'T02': 'B06', 'T03': 'B02'}
-RELATIONS = (
-    ('T01I1', 'T01I3', 'prerequisite', '先用代数式表示数量关系，再解释式子的实际意义。'),
-    ('T01I2', 'T02I1', 'transfer', '将去括号和合并同类项用于化简方程两边。'),
-    ('T02I1', 'T02I2', 'prerequisite', '消元得到一元一次方程后，使用已有的方程解法。'),
-    ('T02I1', 'T03I1', 'transfer', '类比等式变形，另外核对乘除负数时不等号的方向。'),
-    ('T03I1', 'T03I2', 'prerequisite', '分别求出两个不等式的解集，再找公共部分。'),
+# Curriculum mapping lives in curriculum.json so a new textbook or standard is a data change.
+_CURRICULUM = curriculum()
+STANDARD_FILE = _CURRICULUM['standard_file']
+STANDARD_PAGES = _CURRICULUM['standard_pages']
+TEXTBOOKS = dict(_CURRICULUM['textbooks'])
+RELATIONS = tuple(
+    (row['from'], row['to'], row['type'], row['reason']) for row in _CURRICULUM['learning_relations']
 )
 
 
@@ -97,7 +96,7 @@ def build_catalog(source_dir):
         textbook['source_locator'].update(textbook_locator)
         standard_reference = {'resource_id': standard_id, **standard_locator,
                               'locator': f'正文第 {printed_page} 页（PDF 第 {file_page} 页）'}
-        expected_page = (62, 55) if topic_id == 'T01' else (63, 56)
+        expected_page = tuple(STANDARD_PAGES.get(topic_id, STANDARD_PAGES['default']))
         if standard_verified and (file_page, printed_page) == expected_page and indicator_id in STANDARD_CLAUSES:
             section, *clauses = STANDARD_CLAUSES[indicator_id]
             standard_reference.update(section=section, clauses=clauses)

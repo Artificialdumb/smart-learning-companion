@@ -3,6 +3,7 @@ export const labels = {
   supported: "有作答证据", insufficient: "已测 · 证据不足", not_assessed: "该节点未测",
   item: "题目", learning_card: "学习卡", textbook: "教材", curriculum_standard: "课程标准",
   graded: "已评分", pending: "待评分", unanswered: "未作答",
+  mastered: "已掌握", developing: "正在形成", needs_support: "需要支持", insufficient_evidence: "掌握度证据不足",
 };
 
 export function el(tag, attrs = {}, ...children) {

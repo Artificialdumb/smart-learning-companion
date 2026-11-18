@@ -64,7 +64,8 @@ main { padding-block: 2.5rem 4rem; }
 .meta { font-size: .875rem; color: var(--muted); }
 .tag { display: inline-block; padding: .15rem .45rem; background: var(--accent-tint); color: #244a7e; border-radius: .25rem; font-size: .8125rem; }
 .tag.practice_needed, .tag.insufficient { background: var(--evidence-tint); color: var(--evidence); }
-.tag.not_assessed { background: #ebeff3; color: var(--muted); }
+.tag.not_assessed, .tag.insufficient_evidence { background: #ebeff3; color: var(--muted); }
+.tag.needs_support { background: var(--evidence-tint); color: var(--evidence); }
 .tags, .actions { display: flex; flex-wrap: wrap; gap: .4rem; }
 .actions { align-items: center; }
 .primary { background: var(--accent); border-color: var(--accent); color: white; font-weight: 650; }

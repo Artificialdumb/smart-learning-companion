@@ -20,6 +20,7 @@ from app.diagnosis.paths import learning_paths, prerequisite_graph
 from app.diagnosis.probes import PROBE_VERSION
 from app.recommendations import generate_plans, resource_index
 from app.recommendations.local_model import local_selector
+from app.rules import load_rules, rules_digest
 from app.storage import Store
 
 DEFAULT_DB = Path("outputs/study.sqlite3")
@@ -120,6 +121,7 @@ def build(source, db, *, reviews_path=None):
         "built_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "recommendation_rules_version": RECOMMENDATION_RULES,
         "followup_probe_version": PROBE_VERSION,
+        "rules_sha256": rules_digest(),
         "recommendation_mode": "local_model_with_rule_fallback" if selector else "rules",
     })
     Store(db).publish({
@@ -132,11 +134,9 @@ def build(source, db, *, reviews_path=None):
 
 def case_examples(diagnoses, plans):
     cases = []
-    for kind, preferred, focus in (
-        ("practice_needed", ("D01", "N01"), "T01I2"),
-        ("strength", ("D14", "N02"), "T03I2"),
-        ("observe_more", ("D17", "N02"), "T03I2"),
-    ):
+    for example in load_rules()["export"]["case_examples"]:
+        kind, focus = example["kind"], example["indicator_id"]
+        preferred = (example["student_id"], example["node_id"])
         chosen = next((
             (plan, activity) for plan in plans
             if (plan["student_id"], plan["node_id"]) == preferred

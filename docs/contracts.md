@@ -6,7 +6,7 @@ JSON 和 JSONL 使用 UTF-8。编号为字符串，分数和计数为整数，�
 
 | 文件 | 定位字段 | 内容 |
 |---|---|---|
-| `manifest.json` | `run_id` | `schema_version`、`rules_version`、`source_files` 和 `built_at`。源文件含路径和 SHA-256。构建增加 `input_run_id`、`recommendation_rules_version`、`recommendation_mode`，导出增加 `exported_at` 和 `adjustment_versions`。 |
+| `manifest.json` | `run_id` | `schema_version`、`rules_version`、`source_files` 和 `built_at`。源文件含路径和 SHA-256。构建增加 `input_run_id`、`recommendation_rules_version`、`recommendation_mode`、`rules_sha256`，导出增加 `exported_at` 和 `adjustment_versions`。 |
 | `catalog.json` | 各集合业务编号 | `topics`、`indicators`、`items`、`resources`、`nodes`、`learning_relations`。指标有 `topic_id`、`description` 和材料引用。题目有 `indicator_ids`、题干、题型、选项、满分和评分点。材料有类型、标题、适用指标和资料定位。节点以 `item_ids` 规定测验范围。 |
 | `students.json` | `student_id` | 完整名册。包含 `class_id` 和可用的年级。 |
 | `responses.jsonl` | `record_id` | 最新作答。含事件号、修订版本、学生、节点、题目、`scoring_status`、`validation_status`、总得分、满分、最终作答、步骤和评分点得分。冲突的最高修订可留多条记录供复核。 |
@@ -19,6 +19,8 @@ JSON 和 JSONL 使用 UTF-8。编号为字符串，分数和计数为整数，�
 作答评分状态分为 `graded`（已评分）、`pending`（待评分）、`unanswered`（未作答）。校验状态为 `valid` 或 `needs_review`。分析使用最新且 `graded + valid` 的作答，零分照常计入。指标状态分为 `supported`（有作答证据）、`insufficient`（已测但证据不足）、`not_assessed`（本节点未测）。个人覆盖和班级得分计算见 [integration.md](integration.md)。
 
 题目满分和各评分点满分须为正整数，评分点满分之和须等于题目满分。作答修订须为正整数，`steps` 须为字符串数组，无步骤时用 `[]`。有效作答的事件编号须对应学生、节点与题目，已隔离的待复核记录可保留原始身份或评分异常。
+
+个人指标增加 `mastery`，含累计评分点得分与满分、证据记录和节点、后验均值、可信区间及等级。日期范围、模型假设与阈值见联调说明，结果属于模型估计，课堂中的区分能力仍需验证。
 
 A 生成的目录引用含可直接展示的 `locator`。已核实版本的课标引用另含 `section`、`clauses`，教材引用另含 `section`、`pdf_pages` 和 `printed_page_range`。PDF 页码从 1 开始，区间包含两端。学习关系的 `references` 指向支撑关系的指标与同一目录资源。
 
@@ -61,12 +63,12 @@ A 生成的目录引用含可直接展示的 `locator`。已核实版本的课�
 
 追问 GET / PUT 均需要 `run_id` 和 `node_id`。GET 返回 `student_id`、`node_id`、`indicator_id`、`probe_version`、保存版本 `version`、原诊断 `finding_ids`、`evidence`、`questions`、`result` 和 `unavailable_reason`。无有效失分证据或未覆盖的指标返回空问题与原因，不因缺少数据判为薄弱。
 
-每个问题包含 `question_id`、`dimension`（`concept`、`calculation`、`reading`）、`prompt` 和 `options`。选项含 `option_id` 与 `text`，另可提交 `unsure` 表示不确定。未提交的问题不返回答案或解释。提交格式如下，题号与版本须取自 GET：
+每个问题包含 `question_id`、`dimension`（`concept`、`calculation`、`reading`，定位到过程差异时另加 `consistency`）、`dimension_label`、`prompt`、`options`、`focus` 和 `rubric_point_ids`。题组另含 `linked_rubric_points`，描述本次失分点与追问维度的对应。选项含 `option_id` 与 `text`，另可提交 `unsure` 表示不确定。GET 省略答案和解析。提交示例适用于没有过程核对题的三题题组，题号与版本须取自 GET：
 
 ```json
 {
   "expected_version": 0,
-  "probe_version": "screening-1.0",
+  "probe_version": "screening-1.1",
   "answers": {
     "expressions-concept": "1",
     "expressions-calculation": "unsure",
@@ -75,7 +77,7 @@ A 生成的目录引用含可直接展示的 `locator`。已核实版本的课�
 }
 ```
 
-须一次提交当前题组的全部 3 题。错误题号、选项、字段或不完整作答返回 422；保存版本冲突及题组版本冲突返回 409。成功后版本加一。数据库按 `run_id + student_id + node_id + indicator_id` 保存最近一次结果，重新提交替换该指标此前的补充记录。保存不会修改原始作答、得分、诊断或学习计划。
+须一次提交当前题组的全部 3–4 题，题目数量取自 GET。错误题号、选项、字段或不完整作答返回 422；保存版本冲突及题组版本冲突返回 409。成功后版本加一。数据库按 `run_id + student_id + node_id + indicator_id` 保存最近一次结果，重新提交替换该指标此前的补充记录。保存不会修改原始作答、得分、诊断或学习计划。
 
 `result` 包含题组版本、提交时间、原失分证据和逐题 `checks`（题干、选项、所选 `selected_option_id`、答案、解释及 `outcome`），以及 `suspected_causes`、`uncertain_dimensions`、`conclusion`、`limitation`。`outcome` 为 `pass`、`gap` 或 `uncertain`。单个维度仅一个问题，错误表示该维度需要进一步核查，不能单独归因为原题的概念混淆、计算失误或审题偏差。全部正确也不据此认定原题是粗心。重复同一题组不用于衡量提升。
 

@@ -1,0 +1,70 @@
+{
+  "_comment": "课程对照数据：教材页码、课标条目和指标间关系。页码已对照赛题资料包中的 PDF 核验（verified_hashes 为对应文件的 SHA-256），文件不一致时不附加精确页码。换教材或课标时修改本文件。",
+  "standard_file": "5_课程标准及相关教学资源/课程标准_2022.pdf",
+  "standard_pages": {
+    "_comment": "各主题课标条目所在页 [PDF 页, 正文页]；未列出的主题使用 default。只有课程要求中的页码与此一致时才附加条目编号。",
+    "T01": [62, 55],
+    "default": [63, 56]
+  },
+  "textbooks": {"T01": "B05", "T02": "B06", "T03": "B02"},
+  "verified_hashes": {
+    "standard": "1183b95c58a65eaac4c456f2d2b329bbe42f65a6482993edb537e3eaf8baa144",
+    "B02": "ccde81c935d7adeaf3c0da331b8881ea86ca0b173e01d20c4ab427d202efc6b6",
+    "B05": "3f5e0575e5983a35662e705e90230ee5c0c9876b47c98c9da8b9b444027e2e8e",
+    "B06": "ccee907e3a43e701d851942d59511c6a7f78c2ee315cc831592b28517168a990"
+  },
+  "standard_clauses": {
+    "T01I1": {"section": "代数式", "clauses": ["②", "③"]},
+    "T01I2": {"section": "代数式", "clauses": ["⑤"]},
+    "T01I3": {"section": "代数式", "clauses": ["①", "②", "⑤"]},
+    "T02I1": {"section": "方程与方程组", "clauses": ["②"]},
+    "T02I2": {"section": "方程与方程组", "clauses": ["③"]},
+    "T02I3": {"section": "方程与方程组", "clauses": ["①", "⑧"]},
+    "T03I1": {"section": "不等式与不等式组", "clauses": ["①", "②"]},
+    "T03I2": {"section": "不等式与不等式组", "clauses": ["②"]},
+    "T03I3": {"section": "不等式与不等式组", "clauses": ["③"]}
+  },
+  "textbook_locations": {
+    "_comment": "PDF 页从 1 开始；pdf_pages 与 printed_pages 为 [起, 止]。",
+    "T01I1": [
+      {"section": "3.1 列代数式表示数量关系", "pdf_pages": [2, 5], "printed_pages": [69, 72]},
+      {"section": "3.2 代数式的值", "pdf_pages": [12, 13], "printed_pages": [79, 80]}
+    ],
+    "T01I2": [
+      {"section": "4.2 整式的加法与减法", "pdf_pages": [28, 33], "printed_pages": [95, 100]}
+    ],
+    "T01I3": [
+      {"section": "4.2 整式的加法与减法，应用例题", "pdf_pages": [30, 32], "printed_pages": [97, 99]}
+    ],
+    "T02I1": [
+      {"section": "5.1.2 等式的性质", "pdf_pages": [6, 8], "printed_pages": [115, 117]},
+      {"section": "5.2 解一元一次方程", "pdf_pages": [11, 18], "printed_pages": [120, 127]}
+    ],
+    "T02I2": [
+      {"section": "10.2.1 代入消元法", "pdf_pages": [44, 47], "printed_pages": [91, 94]},
+      {"section": "10.2.2 加减消元法", "pdf_pages": [48, 51], "printed_pages": [95, 98]}
+    ],
+    "T02I3": [
+      {"section": "5.3 实际问题与一元一次方程", "pdf_pages": [24, 27], "printed_pages": [133, 136]},
+      {"section": "10.3 实际问题与二元一次方程组", "pdf_pages": [54, 57], "printed_pages": [101, 104]}
+    ],
+    "T03I1": [
+      {"section": "11.1.2 不等式的性质", "pdf_pages": [4, 8], "printed_pages": [123, 127]},
+      {"section": "11.2 一元一次不等式，解法例题", "pdf_pages": [12, 13], "printed_pages": [131, 132]}
+    ],
+    "T03I2": [
+      {"section": "11.3 一元一次不等式组，公共解集", "pdf_pages": [19, 21], "printed_pages": [138, 140]}
+    ],
+    "T03I3": [
+      {"section": "11.2 一元一次不等式，实际问题例题", "pdf_pages": [14, 16], "printed_pages": [133, 135]},
+      {"section": "11.3 一元一次不等式组，抽水时间例题", "pdf_pages": [19, 20], "printed_pages": [138, 139]}
+    ]
+  },
+  "learning_relations": [
+    {"from": "T01I1", "to": "T01I3", "type": "prerequisite", "reason": "先用代数式表示数量关系，再解释式子的实际意义。"},
+    {"from": "T01I2", "to": "T02I1", "type": "transfer", "reason": "将去括号和合并同类项用于化简方程两边。"},
+    {"from": "T02I1", "to": "T02I2", "type": "prerequisite", "reason": "消元得到一元一次方程后，使用已有的方程解法。"},
+    {"from": "T02I1", "to": "T03I1", "type": "transfer", "reason": "类比等式变形，另外核对乘除负数时不等号的方向。"},
+    {"from": "T03I1", "to": "T03I2", "type": "prerequisite", "reason": "分别求出两个不等式的解集，再找公共部分。"}
+  ]
+}

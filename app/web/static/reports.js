@@ -7,6 +7,17 @@ export function evidenceButtons(entries, openRecord) {
   )));
 }
 
+export function masteryLine(mastery) {
+  if (!mastery) return null;
+  if (mastery.estimate == null) {
+    return el("p", {class: "meta"}, tag(mastery.level), " 截至本节点尚无有效评分点证据。");
+  }
+  const [low, high] = mastery.interval;
+  return el("p", {class: "meta number"}, tag(mastery.level),
+    ` 掌握度 ${metric(mastery.estimate)}（${Math.round(mastery.interval_level * 100)}% 区间 ${metric(low)}–${metric(high)}）`,
+    ` · 依据 ${mastery.node_ids.length} 次测验 ${mastery.record_ids.length} 条作答、评分点得分 ${mastery.earned_points}/${mastery.possible_points}`);
+}
+
 export function diagnosisPanel(report, model, openRecord, openFollowup, openPath) {
   const indicators = [...report.indicators].sort((a, b) => {
     const priority = row => row.findings.some(f => f.evidence.some(e => e.step_numbers?.length))
@@ -20,6 +31,7 @@ export function diagnosisPanel(report, model, openRecord, openFollowup, openPath
       row.evidence_status !== "not_assessed" && el("p", {class: "meta number"},
         `有效作答 ${row.valid_count}/${row.eligible_item_count} 题`,
         row.max_score_sum ? ` · 得分 ${row.score_sum}/${row.max_score_sum}（${metric(row.score_rate)}）` : ""),
+      masteryLine(row.mastery),
       row.findings.length ? el("details", {open: index === 0 ? "" : undefined},
         el("summary", {}, `诊断发现（${row.findings.length}）`),
         row.findings.map(finding => el("div", {class: "findings"},

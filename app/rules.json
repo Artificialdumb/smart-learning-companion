@@ -1,0 +1,61 @@
+{
+  "_comment": "诊断、追问、推荐和导出使用的规则与关键词。可用环境变量 STUDY_RULES 指定一个 JSON 文件，按顶层分区覆盖其中的键。批次 manifest 记录生效规则的 rules_sha256。",
+  "mastery": {
+    "_comment": "Beta-二项掌握度：prior 为 Beta 先验 [alpha, beta]；评分点满分合计低于 min_points 为证据不足；区间下限不低于 mastered_lower 为已掌握；均值不低于 developing_mean 为正在形成。",
+    "prior": [1, 1],
+    "interval_level": 0.9,
+    "min_points": 3,
+    "mastered_lower": 0.6,
+    "developing_mean": 0.5
+  },
+  "diagnosis": {
+    "_comment": "result_criterion_keyword：评分标准含此词的失分点才尝试定位过程末行与最终填写的符号差异。",
+    "result_criterion_keyword": "结果"
+  },
+  "followup": {
+    "_comment": "criterion_cues：按顺序匹配失分评分点的评分标准，确定追问优先维度。profile_cues：按顺序匹配指标描述，选择 app/diagnosis/probes.py 中的追问题组。",
+    "criterion_cues": [
+      ["reading", ["列式", "等量关系", "数量关系", "条件", "题意", "表示", "解释", "实际", "范围", "端点"]],
+      ["concept", ["概念", "性质", "同类项", "去括号", "法则", "方向", "意义", "定义"]],
+      ["calculation", ["结果", "计算", "求值", "化简", "求解", "解得", "运算", "合并"]]
+    ],
+    "profile_cues": [
+      ["intersection", ["交集"]],
+      ["constraint", ["列不等式", "实际限制"]],
+      ["inequality", ["不等式性质", "负数乘除"]],
+      ["model", ["列方程"]],
+      ["system", ["消元"]],
+      ["equation", ["一元一次方程"]],
+      ["expressions", ["去括号", "同类项", "化简"]],
+      ["quantity", ["数量关系", "代入求值", "整式解释", "解释表达式"]]
+    ]
+  },
+  "recommendations": {
+    "_comment": "skill_cues 按顺序匹配指标描述，提供活动提示与复查条件；matched_form_keyword 用于优先推荐同类化简题；transfer 为“已掌握后迁移”的指标与题目关键词。",
+    "skill_cues": [
+      {"keywords": ["化简", "去括号", "合并"], "hint": "先标出括号前的符号，逐项检查去括号和合并。", "condition": "独立化简，检查各项符号，并让过程末行与最终作答一致。"},
+      {"keywords": ["交集"], "hint": "先分别标出各条件的取值范围，再检查哪些值同时满足条件。", "condition": "独立写出公共解集，并说明每个边界能否取到。"},
+      {"keywords": ["负数乘除"], "hint": "逐步记录两边所做的运算，检查何时需要改变不等号方向。", "condition": "独立写出解集，代入边界内外各一个数检验方向。"},
+      {"keywords": ["列不等式"], "hint": "先标出数量限制，判断它对应范围的哪一端。", "condition": "独立列式，解释端点和实际数量的取值限制。"},
+      {"keywords": ["消元"], "hint": "先选要消去的未知数，检查代入或加减时各项是否对齐。", "condition": "保留消元过程，将所得数值代回两个原条件检验。"},
+      {"keywords": ["方程"], "hint": "先写清等量关系，再检查每一步变形是否保持相等。", "condition": "保留变形过程，将求得的值代回原条件检验。"},
+      {"keywords": ["数量关系", "代入", "取值"], "hint": "先写出各量的含义和条件，再检查式子是否对应题意。", "condition": "独立列式，解释结果与原条件的对应关系。"}
+    ],
+    "default_cue": {"hint": "先圈出题目给出的条件，写出每一步的依据。", "condition": "独立完成一遍，保留过程并按原条件检验。"},
+    "matched_form_keyword": "化简",
+    "transfer": {
+      "indicator_keyword": "交集",
+      "item_keyword": "复合不等式",
+      "reason": "已有多道满分作答支持取交集的表现，用 {resource_id} 检查能否迁移到复合不等式。",
+      "followup": "标出两个端点，分别说明能否取到。"
+    }
+  },
+  "export": {
+    "_comment": "成果包 cases.json 优先选取的代表性案例（赛题样例数据中的学生、节点和指标）；找不到时取第一条同类活动。",
+    "case_examples": [
+      {"kind": "practice_needed", "student_id": "D01", "node_id": "N01", "indicator_id": "T01I2"},
+      {"kind": "strength", "student_id": "D14", "node_id": "N02", "indicator_id": "T03I2"},
+      {"kind": "observe_more", "student_id": "D17", "node_id": "N02", "indicator_id": "T03I2"}
+    ]
+  }
+}
