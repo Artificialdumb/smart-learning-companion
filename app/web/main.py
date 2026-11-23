@@ -14,7 +14,8 @@ from app._analysis import index, rubric_points
 from app.cli import DEFAULT_DB
 from app.contracts import ContractError, with_run
 from app.diagnosis.paths import learning_paths
-from app.recommendations import plan_id
+from app.recommendations import hint_templates, plan_id
+from app.rules import batch_rules
 from app.storage import Store, missing
 from app.web.access import Access, load_accounts, require_access
 
@@ -203,6 +204,10 @@ def create_app(db_path=None):
         lookup(batch["comparisons"], node_id, "node_not_found")
         plan = lookup(batch["plans"], plan_id(student_id, node_id), "plan_not_found")
         return store.plan(run_id, plan)
+
+    @app.get("/api/hint-templates")
+    def templates(run_id: QueryId):
+        return with_run(run_id, {"templates": hint_templates(batch_rules(store.batch(run_id)))})
 
     @app.put("/api/plans/{plan_id}/teacher-adjustment")
     def teacher_adjustment(plan_id: str, run_id: QueryId, request: PlanAdjustment, actor: Actor):

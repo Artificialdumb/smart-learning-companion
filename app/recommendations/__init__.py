@@ -6,14 +6,16 @@ from collections import defaultdict
 
 from app._analysis import index, rubric_points
 from app.contracts import ContractError
+from app.recommendations.answer_guard import answer_form, states_answer
 from app.rules import load_rules
 
 KIND_ORDER = {"practice_needed": 0, "strength": 1, "observe_more": 2}
 RESOURCE_TYPES = {"item", "learning_card", "textbook"}
 
 
-def _rules():
-    return load_rules()["recommendations"]
+def _rules(rules=None):
+    """Recommendation section of a full rule set; a batch passes its frozen rules."""
+    return (rules or load_rules())["recommendations"]
 
 
 def normalize(text):
@@ -49,7 +51,10 @@ def checked_text(resource_id, hints, condition, items):
         raise ContractError("invalid_text", "填写 1–6 条提示和一条复查条件。每条提示最多 200 字，复查条件最多 300 字。")
     item = items.get(resource_id, {})
     answer = normalize(item.get("reference_answer") or "").strip("。.!！")
+    form = answer_form(item.get("reference_answer") or "")
     for text in (*hints, condition):
+        if states_answer(text, form, item.get("prompt", "")):
+            raise ContractError("answer_in_hint", "提示或复查条件写出了与参考答案等价的式子。请改为检查步骤或判断依据。")
         value = normalize(text)
         direct = re.search(
             r"(?:正确|参考|标准|最终)?答案(?:是|为|[:=])|(?:结果|解集|最终作答)(?:应为|就是|为|是|[:=])"
@@ -115,9 +120,9 @@ def choose_finding(summary, evidence, records):
     return None
 
 
-def choose_resource(candidates, kind, items, source, attempted, description, used):
+def choose_resource(candidates, kind, items, source, attempted, description, used, rules=None):
     source_prompt = normalize(source.get("prompt", ""))
-    rules = _rules()
+    rules = _rules(rules)
     form, transfer_rule = rules["matched_form_keyword"], rules["transfer"]
 
     def rank(resource):
@@ -142,19 +147,18 @@ def choose_resource(candidates, kind, items, source, attempted, description, use
     return sorted(candidates, key=rank)
 
 
-def activity_text(kind, resource, description, finding, item):
+def activity_text(kind, resource, description, finding, item, rules=None):
     rid = resource["resource_id"]
-    rules = _rules()
+    rules = _rules(rules)
     default = rules["default_cue"]
     cue = next(((row["hint"], row["condition"]) for row in rules["skill_cues"]
                 if any(word in description for word in row["keywords"])),
                (default["hint"], default["condition"]))
-    transfer = rules["transfer"]
+    transfer, texts = rules["transfer"], rules["generic_texts"]
     if resource["resource_type"] != "item":
         return (
             f"复习与该指标对应的材料 {rid}，再用自己的例子检查理解。",
-            ["读完后用自己的话说明方法。", "另写一个同类例子，解释每一步。"],
-            "能独立解释方法，并用例子说明什么时候使用。",
+            list(texts["material_hints"]), texts["material_condition"],
         )
     if kind == "practice_needed":
         localized = any(e.get("step_numbers") for e in finding["evidence"])
@@ -162,29 +166,52 @@ def activity_text(kind, resource, description, finding, item):
             f"用 {rid} 练习核对过程末行与最终填写，巩固本次作答出现的薄弱步骤。" if localized
             else f"用同一指标下的 {rid} 巩固本次作答中定位到的问题。"
         )
-        followup = (
-            "逐项核对过程最后一行与最终填写是否一致。" if localized
-            else "完成后回看每一步，标记需要重做的位置。"
-        )
+        followup = texts["practice_localized"] if localized else texts["practice_general"]
     elif kind == "strength":
         reason = f"已有多道满分作答支持当前表现，用 {rid} 检查能否迁移到新题。"
         if transfer["item_keyword"] in item.get("prompt", "") and transfer["indicator_keyword"] in description:
             reason = transfer["reason"].format(resource_id=rid)
             followup = transfer["followup"]
         else:
-            followup = "写出与之前题目不同的条件，再解释所用方法。"
+            followup = texts["strength"]
     else:
         reason = f"该指标已测且有效证据不足，用 {rid} 获取一次独立作答。"
-        followup = "保留解题过程，标出犹豫或需要帮助的环节。"
+        followup = texts["observe"]
     return reason, [cue[0], followup], cue[1]
+
+
+def hint_templates(rules=None):
+    """Reviewed hint and recheck-condition sentences, in a stable order, with the cues they serve."""
+    rules = _rules(rules)
+    texts = rules["generic_texts"]
+    rows = []
+    for number, cue in enumerate(rules["skill_cues"], 1):
+        rows.append({"template_id": f"cue-{number}-hint", "use": "hint", "keywords": cue["keywords"],
+                     "text": cue["hint"]})
+        rows.append({"template_id": f"cue-{number}-condition", "use": "condition", "keywords": cue["keywords"],
+                     "text": cue["condition"]})
+    rows += [
+        {"template_id": "default-hint", "use": "hint", "keywords": [], "text": rules["default_cue"]["hint"]},
+        {"template_id": "default-condition", "use": "condition", "keywords": [],
+         "text": rules["default_cue"]["condition"]},
+        {"template_id": "transfer-hint", "use": "hint", "keywords": [rules["transfer"]["indicator_keyword"]],
+         "text": rules["transfer"]["followup"]},
+        *({"template_id": f"material-hint-{i}", "use": "hint", "keywords": [], "text": text}
+          for i, text in enumerate(texts["material_hints"], 1)),
+        {"template_id": "material-condition", "use": "condition", "keywords": [], "text": texts["material_condition"]},
+        *({"template_id": key.replace("_", "-"), "use": "hint", "keywords": [], "text": texts[key]}
+          for key in ("practice_localized", "practice_general", "strength", "observe")),
+    ]
+    return rows
 
 
 def plan_id(student_id, node_id):
     return f"PLAN-{student_id}-{node_id}"
 
 
-def generate_plans(catalog, diagnosis_results, evidence_by_record_id, *, select_resource=None):
+def generate_plans(catalog, diagnosis_results, evidence_by_record_id, *, select_resource=None, rules=None):
     """Return original plans indexed by student_id and node_id."""
+    rules = rules or load_rules()
     items = index(catalog["items"], "item_id")
     nodes = index(catalog["nodes"], "node_id")
     indicators = index(catalog["indicators"], "indicator_id")
@@ -219,12 +246,13 @@ def generate_plans(catalog, diagnosis_results, evidence_by_record_id, *, select_
                 source = items[records[ids[0]]["item_id"]] if ids else {}
                 candidates = choose_resource(
                     [r for r in resources.values() if eligible_resource(r, iid, nodes[node_id], items)],
-                    kind, items, source, attempts[student, node_id], description, used,
+                    kind, items, source, attempts[student, node_id], description, used, rules,
                 )
                 ranked = []
                 for resource in candidates:
                     rid = resource["resource_id"]
-                    reason, hints, condition = activity_text(kind, resource, description, finding, items.get(rid, {}))
+                    reason, hints, condition = activity_text(kind, resource, description, finding,
+                                                             items.get(rid, {}), rules)
                     try:
                         hints, condition = checked_text(rid, hints, condition, items)
                     except ContractError:
@@ -242,7 +270,7 @@ def generate_plans(catalog, diagnosis_results, evidence_by_record_id, *, select_
                     "indicator_id": iid, "finding_ids": [finding["finding_id"]],
                     "evidence_record_ids": ids, "kind": kind, "resource_id": rid,
                     "sequence": sequence, "reason": reason, "hints": hints,
-                    "recheck_condition": condition,
+                    "recheck_condition": condition, "hint_review": "reviewed",
                 })
             result[student][node_id] = {
                 "plan_id": plan_id(student, node_id),
@@ -252,7 +280,7 @@ def generate_plans(catalog, diagnosis_results, evidence_by_record_id, *, select_
     return result
 
 
-def validate_adjustment(plan, edits, catalog):
+def validate_adjustment(plan, edits, catalog, rules=None):
     original = index(plan["activities"], "recommendation_id")
     edit_ids = [edit["recommendation_id"] for edit in edits]
     if not original or len(edit_ids) != len(original) or set(edit_ids) != original.keys():
@@ -262,6 +290,7 @@ def validate_adjustment(plan, edits, catalog):
     resources = resource_index(catalog)
     items = index(catalog["items"], "item_id")
     node = index(catalog["nodes"], "node_id")[plan["node_id"]]
+    reviewed = {row["text"] for row in hint_templates(rules)}
     effective = []
     for edit in sorted(edits, key=lambda row: row["sequence"]):
         prior = original[edit["recommendation_id"]]
@@ -274,6 +303,8 @@ def validate_adjustment(plan, edits, catalog):
         effective.append({
             **prior, "resource_id": rid, "sequence": edit["sequence"],
             "hints": hints, "recheck_condition": condition,
+            # Teacher-written text passes the leak checks but is flagged until someone reviews it.
+            "hint_review": "reviewed" if {*hints, condition} <= reviewed else "custom",
             "reason": (
                 prior["reason"] if rid == prior["resource_id"] else
                 f"教师更换为 {rid}，继续练习活动关联的同一指标。"

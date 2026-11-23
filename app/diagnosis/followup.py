@@ -6,9 +6,23 @@ from datetime import datetime, timezone
 
 from app._analysis import index, rubric_points
 from app.contracts import ContractError
-from app.diagnosis.probes import LABELS, PROBE_VERSION, criterion_dimension, questions_for
+from app.diagnosis.probes import LABELS, criterion_dimension, probe_bank
+from app.rules import batch_rules
 
 PUBLIC_FIELDS = ("question_id", "dimension", "dimension_label", "prompt", "options", "focus", "rubric_point_ids")
+LEGACY_REASON = "该批次构建时未冻结追问题组，请重新构建批次后再进行错因追问。"
+
+
+def frozen_probes(batch):
+    """The batch's own screening questions and version; None for batches built before freezing."""
+    probes = batch.get("probes")
+    if probes is None:
+        return None, None
+    return probes, batch["manifest"]["followup_probe_version"]
+
+
+def build_probes(catalog, rules):
+    return probe_bank(catalog, rules)
 
 
 def indicator_context(batch, student_id, node_id, indicator_id):
@@ -29,6 +43,7 @@ def indicator_context(batch, student_id, node_id, indicator_id):
 def missed_points(batch, findings):
     """Missed rubric points cited by the findings, with criterion text and dimension."""
     items = index(batch["catalog"]["items"], "item_id")
+    cues = batch_rules(batch)["followup"]["criterion_cues"]
     linked = {}
     for finding in findings:
         for evidence in finding["evidence"]:
@@ -40,7 +55,7 @@ def missed_points(batch, findings):
                 if point_id in points and point_id not in linked:
                     criterion = points[point_id]["criterion"]
                     linked[point_id] = {"rubric_point_id": point_id, "item_id": record["item_id"],
-                                        "criterion": criterion, "dimension": criterion_dimension(criterion)}
+                                        "criterion": criterion, "dimension": criterion_dimension(criterion, cues)}
     return list(linked.values())
 
 
@@ -82,7 +97,10 @@ def consistency_question(batch, findings):
 
 
 def question_set(batch, indicator, findings):
-    """Fixed screening questions ordered by the missed rubric points, plus an evidence-built check."""
+    """The batch's frozen questions ordered by the missed rubric points, plus an evidence-built check."""
+    probes, _ = frozen_probes(batch)
+    if probes is None:
+        return [], []
     linked = missed_points(batch, findings)
     by_dimension = {}
     for point in linked:
@@ -91,7 +109,7 @@ def question_set(batch, indicator, findings):
     questions = [
         {**q, "dimension_label": LABELS[q["dimension"]], "focus": q["dimension"] in by_dimension,
          "rubric_point_ids": by_dimension.get(q["dimension"], [])}
-        for q in questions_for(indicator["description"])
+        for q in probes.get(indicator["indicator_id"], [])
     ]
     if not questions:
         return [], linked
@@ -105,14 +123,17 @@ def followup_view(batch, student_id, node_id, indicator_id, saved=None):
     indicator, summary = indicator_context(batch, student_id, node_id, indicator_id)
     findings = [f for f in summary["findings"] if f["kind"] == "practice_needed"]
     questions, linked = question_set(batch, indicator, findings)
+    probes, probe_version = frozen_probes(batch)
     reason = None
     if not findings or summary["evidence_status"] != "supported":
         reason = "当前没有有效失分证据，暂不进行错因辨析。"
+    elif probes is None:
+        reason = LEGACY_REASON
     elif not questions:
         reason = "该指标尚无经过编写的追问题组，请由教师补充观察。"
     return {
         "student_id": student_id, "node_id": node_id, "indicator_id": indicator_id,
-        "probe_version": PROBE_VERSION, "version": saved["version"] if saved else 0,
+        "probe_version": probe_version, "version": saved["version"] if saved else 0,
         "finding_ids": [f["finding_id"] for f in findings],
         "evidence": [e for f in findings for e in f["evidence"]],
         "linked_rubric_points": linked if reason is None else [],
@@ -124,7 +145,7 @@ def followup_view(batch, student_id, node_id, indicator_id, saved=None):
 
 def evaluate_followup(batch, student_id, node_id, indicator_id, probe_version, answers):
     view = followup_view(batch, student_id, node_id, indicator_id)
-    if probe_version != PROBE_VERSION:
+    if probe_version != view["probe_version"]:
         raise ContractError("probe_version_conflict", "追问题组已更新，请重新打开后作答。", 409)
     if view["unavailable_reason"]:
         raise ContractError("followup_unavailable", view["unavailable_reason"])
@@ -159,7 +180,7 @@ def evaluate_followup(batch, student_id, node_id, indicator_id, probe_version, a
     else:
         conclusion = "本次小题均通过，尚未复现原题错误；请回看原题过程与最终填写。"
     return {
-        "probe_version": PROBE_VERSION, "submitted_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "probe_version": view["probe_version"], "submitted_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "finding_ids": view["finding_ids"], "evidence": view["evidence"],
         "linked_rubric_points": linked,
         "checks": checks, "suspected_causes": gaps, "uncertain_dimensions": uncertain,

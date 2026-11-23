@@ -10,12 +10,14 @@ export function evidenceButtons(entries, openRecord) {
 export function masteryLine(mastery) {
   if (!mastery) return null;
   if (mastery.estimate == null) {
-    return el("p", {class: "meta"}, tag(mastery.level), " 截至本节点尚无有效评分点证据。");
+    return el("p", {class: "meta"}, tag(mastery.level), " 截至本节点尚无有效作答。");
   }
   const [low, high] = mastery.interval;
-  return el("p", {class: "meta number"}, tag(mastery.level),
-    ` 掌握度 ${metric(mastery.estimate)}（${Math.round(mastery.interval_level * 100)}% 区间 ${metric(low)}–${metric(high)}）`,
-    ` · 依据 ${mastery.node_ids.length} 次测验 ${mastery.record_ids.length} 条作答、评分点得分 ${mastery.earned_points}/${mastery.possible_points}`);
+  const count = mastery.evidence_count ?? mastery.record_ids.length;
+  return el("p", {class: "meta number",
+    title: "得分比例指数：按有效作答的得分比例平滑估计，不是经过校准的掌握概率。"}, tag(mastery.level),
+    ` 得分比例指数 ${metric(mastery.estimate)}（${Math.round(mastery.interval_level * 100)}% 区间 ${metric(low)}–${metric(high)}）`,
+    ` · 依据 ${mastery.node_ids.length} 次测验 ${count} 条有效作答`);
 }
 
 export function diagnosisPanel(report, model, openRecord, openFollowup, openPath) {

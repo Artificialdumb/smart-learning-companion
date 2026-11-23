@@ -70,7 +70,8 @@ class FollowupTests(unittest.TestCase):
         view = self.client.get(self.url, params=self.params).json()
         three = {q["question_id"]: "unsure" for q in view["questions"][:3]}
         short = self.client.put(self.url, params=self.params, json={
-            "expected_version": 0, "probe_version": PROBE_VERSION, "answers": three})
+            "expected_version": 0, "probe_version": view["probe_version"], "answers": three})
+        self.assertTrue(view["probe_version"].startswith(PROBE_VERSION + "+"))
         self.assertEqual(short.json()["error"]["code"], "invalid_answers")
         full = {q["question_id"]: "unsure" for q in view["questions"]}
         stale = self.client.put(self.url, params=self.params, json={

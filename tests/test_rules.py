@@ -56,9 +56,9 @@ class OverrideTests(unittest.TestCase):
             self.assertEqual((sk01["level"], sk01["estimate"]), ("insufficient_evidence", 0.5))
 
             override = folder / "rules.json"
-            override.write_text(json.dumps({"mastery": {"min_points": 1}}), encoding="utf-8")
+            override.write_text(json.dumps({"mastery": {"min_evidence": 1}}), encoding="utf-8")
             with mock.patch.dict(os.environ, {"STUDY_RULES": str(override)}):
-                self.assertEqual(load_rules()["mastery"]["min_points"], 1)
+                self.assertEqual(load_rules()["mastery"]["min_evidence"], 1)
                 self.assertEqual(load_rules()["mastery"]["prior"], [1, 1])
                 custom_run = build(FIXTURE, db)
             custom = Store(db).batch(custom_run)
@@ -70,3 +70,31 @@ class OverrideTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class InvalidRulesTests(unittest.TestCase):
+    def test_invalid_rules_do_not_publish_a_batch(self):
+        cases = [{"mastery": {"mastered_lower": -1}}, {"mastery": {"prior": [0, 1]}},
+                 {"mastery": {"interval_level": float("nan")}}, {"mastery": {"min_evidence": True}},
+                 {"followup": {"criterion_cues": [["unknown", ["结果"]]]}},
+                 {"followup": {"profile_cues": [["expressions", "化简"]]}}]
+        with TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            db = folder / "study.sqlite3"
+            old = build(FIXTURE, db)
+            path = folder / "rules.json"
+            for custom in cases:
+                path.write_text(json.dumps(custom), encoding="utf-8")
+                with mock.patch.dict(os.environ, {"STUDY_RULES": str(path)}):
+                    with self.assertRaises(ValueError):
+                        build(FIXTURE, db)
+                self.assertEqual(Store(db).current()["manifest"]["run_id"], old)
+
+    def test_replacing_override_at_same_path_changes_new_build_rules(self):
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "rules.json"
+            with mock.patch.dict(os.environ, {"STUDY_RULES": str(path)}):
+                path.write_text('{"mastery":{"min_evidence":1}}')
+                self.assertEqual(load_rules()["mastery"]["min_evidence"], 1)
+                path.write_text('{"mastery":{"min_evidence":5}}')
+                self.assertEqual(load_rules()["mastery"]["min_evidence"], 5)

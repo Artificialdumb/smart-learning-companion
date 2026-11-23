@@ -15,6 +15,8 @@ function activityList(activities, model, openResource, openFinding, title = "") 
       el("div", {class: "actions"},
         button(`学习材料 ${activity.resource_id}`, () => openResource(activity.resource_id), "link-button"),
         button("查看诊断依据", () => openFinding(activity.finding_ids[0]), "link-button evidence")),
+      activity.hint_review === "custom"
+        ? el("p", {class: "meta"}, el("span", {class: "tag needs_support"}, "教师自拟提示 · 未审阅")) : null,
       el("details", {}, el("summary", {}, "分步提示与复查条件"),
         el("ol", {}, activity.hints.map(hint => el("li", {}, hint))),
         el("p", {}, el("strong", {}, "复查条件"), "　", activity.recheck_condition)),
@@ -39,13 +41,30 @@ export function learningPlan(plan, model, drafts, actions) {
   const header = container.firstElementChild;
   const view = el("div");
   container.append(view);
-  const buttonEdit = button("教师调整", () => {
+  let templates = [];
+  const buttonEdit = button("教师调整", async () => {
     drafts.set(key, {
       version: plan.adjustment_version, rows: editCopy(plan.effective_activities),
     });
+    try { templates = await actions.templates(); } catch { templates = []; }
     render();
     view.querySelector("select")?.focus();
   });
+
+  function templatePicker(use, keywords, insert) {
+    const rows = templates.filter(row => row.use === use)
+      .sort((a, b) => Number(!a.keywords.some(k => keywords.includes(k)))
+        - Number(!b.keywords.some(k => keywords.includes(k))));
+    if (!rows.length) return null;
+    const picker = el("select", {"aria-label": use === "hint" ? "插入审阅提示" : "选用审阅复查条件"},
+      el("option", {value: ""}, use === "hint" ? "插入审阅过的提示…" : "选用审阅过的复查条件…"),
+      rows.map(row => el("option", {value: row.text}, row.text)));
+    picker.addEventListener("change", () => {
+      if (picker.value) insert(picker.value);
+      picker.value = "";
+    });
+    return picker;
+  }
   const version = el("small", {class: "meta"});
   header.append(el("div", {class: "actions"}, version, buttonEdit));
 
@@ -104,6 +123,13 @@ export function learningPlan(plan, model, drafts, actions) {
       hints.addEventListener("input", () => { row.hints = hints.value.split("\n"); });
       const recheck = el("textarea", {rows: 2, required: "", maxlength: 300}, row.recheck_condition);
       recheck.addEventListener("input", () => { row.recheck_condition = recheck.value; });
+      const hintPicker = templatePicker("hint", title, text => {
+        row.hints = [...row.hints.map(line => line.trim()).filter(Boolean), text];
+        hints.value = row.hints.join("\n");
+      });
+      const conditionPicker = templatePicker("condition", title, text => {
+        row.recheck_condition = recheck.value = text;
+      });
       const move = offset => () => {
         const target = position + offset;
         [draft.rows[position], draft.rows[target]] = [draft.rows[target], draft.rows[position]];
@@ -116,8 +142,9 @@ export function learningPlan(plan, model, drafts, actions) {
       form.append(el("fieldset", {}, el("legend", {}, `${position + 1}. ${title}`),
         el("p", {class: "meta"}, labels[original.kind]),
         el("label", {class: "edit-field"}, "学习材料", material),
-        el("label", {class: "edit-field"}, "提示（每行一条）", hints),
-        el("label", {class: "edit-field"}, "复查条件", recheck),
+        el("label", {class: "edit-field"}, "提示（每行一条）", hints), hintPicker,
+        el("label", {class: "edit-field"}, "复查条件", recheck), conditionPicker,
+        el("p", {class: "meta"}, "优先选用审阅过的模板；自拟文字会标记为“未审阅”，并检查是否写出答案或其等价式。"),
         el("div", {class: "actions"}, up, down)));
     }
     form.append(el("div", {class: "actions"}, save, cancel, refresh), status);
@@ -162,5 +189,9 @@ export function learningPlan(plan, model, drafts, actions) {
   }
 
   render();
+  if (drafts.get(key)) {
+    // A draft kept from an earlier view needs the reviewed templates again.
+    actions.templates().then(rows => { templates = rows; render(); }).catch(() => {});
+  }
   return container;
 }

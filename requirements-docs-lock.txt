@@ -1,0 +1,14 @@
+# 仅用于 tools/design_doc.py 生成设计方案 PDF 的可选依赖（2026-11-23 本地验证版本）。
+# 注意：PyMuPDF 为 GNU AGPL-3.0 或 Artifex 商业许可双许可；只在本地生成 PDF 时使用，不随网页服务运行。
+pymupdf==2.1
+pymupdf4llm==2.1
+pymupdf_layout==2.1
+flatbuffers==25.12.19
+networkx==3.7
+numpy==2.5.5
+onnxruntime==1.32.0
+packaging==26.3
+protobuf==7.36.2
+psutil==7.2.2
+PyYAML==6.0.4
+tabulate==0.10.0

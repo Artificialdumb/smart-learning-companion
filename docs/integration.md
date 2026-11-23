@@ -27,7 +27,7 @@ class_report = {"run_id": run_id, **comparisons[node_id]}
 | `score_sum`、`max_score_sum`、`score_rate` | 只汇总有效记录。有效零分正常计入。无有效记录时两个合计为 0、得分率为 `null`。 |
 | `evidence_status` | `supported` 有至少一条有效作答，可以描述已观察到的表现。 `insufficient` 已测但无有效作答。 `not_assessed` 节点题库未覆盖。 |
 | `findings` | `strength` 描述已完成的题或得分评分点，`practice_needed` 标出本次作答的失分和依据，`observe_more` 说明证据不足及缺证据分类。 |
-| `mastery` | 掌握度估计（Beta-二项模型）。汇总该生在本节点及测验日期不晚于本节点的所有节点、本指标下有效作答的评分点得分 `earned_points` 与满分 `possible_points`，以 `prior` 为先验得到后验均值 `estimate` 与 `interval_level` 可信区间 `interval`，并列出 `record_ids`、`node_ids`。`level`：评分点满分合计低于 `min_points` 为 `insufficient_evidence`；区间下限不低于 `mastered_lower` 为 `mastered`；均值不低于 `developing_mean` 为 `developing`；否则 `needs_support`。无证据时 `estimate`、`interval` 为 `null`。阈值见 `app/rules.json`。 |
+| `mastery` | 得分比例指数（`interpretation: "score_share_index"`，不是掌握概率）。汇总该生在本节点及测验日期不晚于本节点的所有节点、本指标下的有效作答，每条作答记一次证据（`evidence_unit: "response"`、`evidence_count`），按得分比例累计 `score_share_sum`，以 `prior` 为先验得到平滑均值 `estimate` 与 `interval_level` 区间 `interval`；另列 `earned_points`、`possible_points`、`record_ids`、`node_ids` 供核对。`level`：有效作答少于 `min_evidence` 条为 `insufficient_evidence`；区间下限不低于 `mastered_lower` 为 `mastered`；均值不低于 `developing_mean` 为 `developing`；否则 `needs_support`。无证据时 `estimate`、`interval` 为 `null`。权重选择与验证见 [掌握度证据权重说明](掌握度证据权重说明.md)。 |
 | `finding_id`、`evidence` | 发现编号在批次内可定位。证据项含 `record_id`、`rubric_point_ids`，步骤如已定位则带 `step_numbers`，按 `steps` 数组从 1 编号。补充观察证据为空。 |
 
 一条有效作答可以支持描述该题的实际过程、得分或失分。汇总可以并列列出多次表现及各自证据。关于反复出现的问题，需要多个不同作答事件，本版在个人结果中逐题列举失分。通用评分点如“答案正确”只能定位本题表现。只有末行化简结果与参考结果一致、前序评分点全得、结果评分点失分、最终表达式逐项仅符号不同的简单情况，才自动定位末行与最终填答的差异。其他失分以评分点为证据。
@@ -60,7 +60,9 @@ python -m app.cli export --run-id <批次编号> --out outputs/成果包
 - 如用非默认 SQLite 文件，构建和导出传 `--db <路径>`，启动网页时设置 `STUDY_DB=<相同路径>`。默认文件为 `outputs/study.sqlite3`。
 - 构建生成新批次号，成功提交后才切换当前批次。已打开的页面按初始化时的批次查询和保存。导出读取所选批次及其同一时刻的教师调整，输出目录使用新路径。
 - 规则按指标定位本次具体失分优先给巩固建议。至少两条独立满分作答才给变式练习。已测且无有效证据时安排补充观察，未测指标不生成活动。题目优先从同节点、同指标、该学生未作答的材料中选。教师可用同范围内的其他题目或映射到该指标的学习卡、教材替换。
-- 规则与关键词集中在 `app/rules.json`：掌握度阈值（`mastery`）、步骤定位关键词（`diagnosis`）、追问维度与题组匹配（`followup`）、推荐提示与排序关键词（`recommendations`）、成果包代表案例（`export`）。课程对照数据（教材页码、课标条目、指标关系、PDF 校验摘要）在 `app/catalog/curriculum.json`。设置 `STUDY_RULES=<JSON 文件>` 可按顶层分区覆盖规则，例如 `{"mastery": {"min_points": 5}}`；构建时 `manifest.json` 记录生效规则的 `rules_sha256`。以 `_` 开头的键为注释。
+- 规则与关键词集中在 `app/rules.json`：掌握度阈值（`mastery`）、步骤定位关键词（`diagnosis`）、追问维度与题组匹配（`followup`）、推荐提示与排序关键词（`recommendations`）、成果包代表案例（`export`）。课程对照数据（教材页码、课标条目、指标关系、PDF 校验摘要）在 `app/catalog/curriculum.json`。设置 `STUDY_RULES=<JSON 文件>` 可按顶层分区覆盖规则；以 `_` 开头的键为注释。
+- **提示防泄题**：教师调整优先从 `GET /api/hint-templates`（批次冻结的审阅模板）选用提示与复查条件；只用模板的活动标记 `hint_review: "reviewed"`，含自拟文字的标记 `"custom"` 并在页面显示“未审阅”。所有文字先经短语与字面检查，再由 `app/recommendations/answer_guard.py` 做等价式检查：整式答案按多项式比较（换序、显式乘号、`+(-n)`、`-1n`、分数系数），不等式与方程组按规范化关系比较（`3<x` 与 `x>3`、`2x>6`、`4≥x>1`、`y=3，x=4`）。原样引用题干中的式子不算泄题；单个常数或单个字母的答案仍按原短答案规则处理，避免误伤“第 2 步”这类表述。
+- **批次冻结**：构建时把生效的完整规则和各指标的追问题组写入批次，`manifest.json` 记录 `rules_sha256` 和带内容摘要的 `followup_probe_version`（形如 `screening-1.1+<12 位摘要>`）。之后修改默认规则或 `STUDY_RULES` 只影响新批次；历史批次的诊断、计划、追问题目和教师调整校验仍使用自己的版本。成果包附带 `rules.json` 和 `followup_probes.json`，从成果包重建时使用这两份文件：内容与 manifest 摘要不符，或同时设置了不同的 `STUDY_RULES`，构建直接报错。冻结功能上线前构建的批次没有题组记录，错因追问提示重新构建。
 - 默认离线。可选设置 `STUDY_MODEL` 为本地 OpenAI 兼容模型名，`STUDY_MODEL_PORT` 默认 11434，服务需要凭据时设置 `STUDY_MODEL_KEY`。构建只向回环地址发送活动类别、指标编号和候选材料编号。模型可从已校验的候选中选择，异常或无效结果使用规则首选。提示和复查条件由模板提供。
 - 运行于本地演示环境。资源和作答按赛题使用范围保存在本地。提交前按赛题要求核对成果包中的记录及引用材料范围。
 

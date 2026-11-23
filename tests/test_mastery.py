@@ -2,12 +2,17 @@ import unittest
 
 from app.diagnosis.mastery import beta_cdf, beta_quantile, cumulative_rows, estimate
 from app.rules import load_rules
+from tools.mastery_calibration import simulate
 
-MASTERY_DEFAULTS = load_rules()["mastery"]
+MASTERY = load_rules()["mastery"]
 
 
 def row(record_id, node_id, score, max_score):
     return {"record_id": record_id, "node_id": node_id, "score": score, "max_score": max_score}
+
+
+def responses(*scores, maximum=2):
+    return [row(f"R{i}", "N", score, maximum) for i, score in enumerate(scores)]
 
 
 class BetaTests(unittest.TestCase):
@@ -20,24 +25,35 @@ class BetaTests(unittest.TestCase):
 
 
 class EstimateTests(unittest.TestCase):
-    def level(self, earned, possible):
-        return estimate([row("R", "N", earned, possible)], MASTERY_DEFAULTS)
-
     def test_levels_follow_thresholds(self):
-        self.assertEqual(self.level(10, 10)["level"], "mastered")
-        self.assertEqual(self.level(6, 10)["level"], "developing")
-        self.assertEqual(self.level(1, 10)["level"], "needs_support")
-        small = self.level(2, 2)
-        self.assertEqual(small["level"], "insufficient_evidence")
-        self.assertEqual(small["estimate"], 0.75)
+        self.assertEqual(estimate(responses(*[2] * 6), MASTERY)["level"], "mastered")
+        self.assertEqual(estimate(responses(2, 1, 1, 2), MASTERY)["level"], "developing")
+        self.assertEqual(estimate(responses(0, 0, 1), MASTERY)["level"], "needs_support")
+        few = estimate(responses(2, 2), MASTERY)
+        self.assertEqual((few["level"], few["evidence_count"]), ("insufficient_evidence", 2))
 
-    def test_interval_narrows_with_more_evidence(self):
-        few, many = self.level(3, 4), self.level(30, 40)
+    def test_interval_narrows_only_with_more_responses(self):
+        few, many = estimate(responses(2, 1), MASTERY), estimate(responses(*[2, 1] * 10), MASTERY)
         self.assertLess(many["interval"][1] - many["interval"][0], few["interval"][1] - few["interval"][0])
+        rescaled = estimate(responses(20, 10, maximum=20), MASTERY)
+        self.assertEqual(rescaled["interval"], few["interval"])
 
     def test_no_evidence_has_no_estimate(self):
-        empty = estimate([], MASTERY_DEFAULTS)
+        empty = estimate([], MASTERY)
         self.assertEqual((empty["estimate"], empty["interval"], empty["level"]), (None, None, "insufficient_evidence"))
+
+
+class CalibrationTests(unittest.TestCase):
+    """Counting correlated rubric points as independent trials makes intervals overconfident."""
+
+    def test_per_response_intervals_keep_nominal_coverage(self):
+        for count, points in ((3, 4), (6, 10)):
+            with self.subTest(responses=count, points=points):
+                result = simulate(students=1500, responses=count, points=points, seed=11)
+                per_point, per_response = result["per_point"][0], result["per_response"][0]
+                self.assertGreaterEqual(per_response, 0.85)
+                self.assertLess(per_point, per_response)
+        self.assertLess(simulate(students=1500, responses=6, points=10, seed=11)["per_point"][0], 0.75)
 
 
 class CumulativeTests(unittest.TestCase):

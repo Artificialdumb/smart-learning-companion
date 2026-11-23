@@ -7,9 +7,11 @@ from ..rules import load_rules
 from . import mastery
 
 
-def diagnose_students(catalog, students, latest_responses, usable_responses, *, mastery_config=None):
+def diagnose_students(catalog, students, latest_responses, usable_responses, *, rules=None, mastery_config=None):
     """Return diagnostics indexed by student_id and then by node_id."""
-    mastery_config = mastery_config or load_rules()["mastery"]
+    rules = rules or load_rules()
+    mastery_config = mastery_config or rules["mastery"]
+    keyword = rules["diagnosis"]["result_criterion_keyword"]
     roster = index(students, "student_id")
     items, allowed, scope = assessment_scope(catalog)
     node_dates = {nid: node.get("assessment_date") for nid, node in index(catalog["nodes"], "node_id").items()}
@@ -64,7 +66,7 @@ def diagnose_students(catalog, students, latest_responses, usable_responses, *, 
                     coverage[statuses.get(key, "missing_record_count")] += 1
                     if key in usable:
                         rows.append(usable[key])
-                findings = evidence_findings(rows, items, coverage, len(item_ids))
+                findings = evidence_findings(rows, items, coverage, len(item_ids), keyword)
                 for i, finding in enumerate(findings, 1):
                     finding["finding_id"] = f"F-{student}-{node}-{indicator}-{i:02d}"
                 summaries.append({
@@ -83,7 +85,7 @@ def diagnose_students(catalog, students, latest_responses, usable_responses, *, 
     return result
 
 
-def evidence_findings(rows, items, coverage, eligible_count):
+def evidence_findings(rows, items, coverage, eligible_count, keyword="结果"):
     if not eligible_count:
         return []
     if not rows:
@@ -109,7 +111,7 @@ def evidence_findings(rows, items, coverage, eligible_count):
         if row["score"] < row["max_score"]:
             evidence = {"record_id": row["record_id"], "rubric_point_ids": missed}
             summary = score_text + "。"
-            mismatch = result_sign_mismatch(row, item, points, missed, passed)
+            mismatch = result_sign_mismatch(row, item, points, missed, passed, keyword)
             if mismatch:
                 line, final = mismatch
                 summary += f"化简过程最后一行写为 {line}，最终填写为 {final}，两处符号不一致。"
@@ -137,12 +139,11 @@ def evidence_findings(rows, items, coverage, eligible_count):
     return findings
 
 
-def result_sign_mismatch(row, item, points, missed, passed):
+def result_sign_mismatch(row, item, points, missed, passed, keyword="结果"):
     # shortcut: 仅对有评分点佐证的简单单字母整式比较逐项符号，扩展题型前增加等价性测试。
     steps = row["steps"]
     if len(missed) != 1 or not steps or not passed:
         return None
-    keyword = load_rules()["diagnosis"]["result_criterion_keyword"]
     if len(passed) != len(points) - 1 or keyword not in points[missed[0]]["criterion"]:
         return None
 

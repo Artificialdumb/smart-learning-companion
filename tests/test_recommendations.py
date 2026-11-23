@@ -1,7 +1,8 @@
 import unittest
 from pathlib import Path
 
-from app.cli import normalized_batch, validate_catalog
+from app.catalog.validation import validate_catalog
+from app.cli import normalized_batch
 from app.contracts import ContractError
 from app.diagnosis import diagnose_students
 from app.recommendations import checked_text, generate_plans

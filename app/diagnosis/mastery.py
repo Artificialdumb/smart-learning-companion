@@ -1,14 +1,21 @@
-"""Beta-binomial mastery estimates over rubric-point evidence.
+"""Score-share mastery index with a Beta-smoothed interval.
 
-Each rubric point score unit is treated as one Bernoulli trial for the indicator
-the item measures. A Beta prior is updated with the points earned and the points
-attempted in the current node and every earlier node, so the interval narrows as
-evidence accumulates. Thresholds come from the rules file.
+Evidence unit: one valid response. A response with score s of maximum m adds s/m
+to the "earned" side and 1 - s/m to the "missed" side of a Beta prior, so the
+weight of a response does not depend on how many points the rubric splits it into
+(1/2 and 10/20 are the same evidence). Score units and rubric points within one
+response are strongly correlated, and counting them as independent trials made
+intervals too narrow (see docs/掌握度证据权重说明.md and tools/mastery_calibration.py).
+
+The result is an index of the observed score share, smoothed toward the prior. It is
+not a calibrated probability that the student has mastered the indicator: nothing in
+the data links the index to an external mastery criterion.
 """
 
 import math
 
-MODEL = "beta_binomial_rubric"
+MODEL = "beta_score_share_per_response"
+INTERPRETATION = "score_share_index"
 
 
 def _beta_cf(a, b, x):
@@ -55,16 +62,19 @@ def beta_quantile(p, a, b):
 
 
 def estimate(rows, config):
-    """Summarize earned/possible rubric points of usable rows into a mastery estimate."""
+    """Summarize usable responses into a score-share index, interval and evidence level."""
     alpha, beta = config["prior"]
-    earned = sum(row["score"] for row in rows)
-    possible = sum(row["max_score"] for row in rows)
+    shares = [row["score"] / row["max_score"] for row in rows]
     level_width = config["interval_level"]
     result = {
         "model": MODEL,
+        "interpretation": INTERPRETATION,
         "prior": [alpha, beta],
-        "earned_points": earned,
-        "possible_points": possible,
+        "evidence_unit": "response",
+        "evidence_count": len(rows),
+        "score_share_sum": round(sum(shares), 3),
+        "earned_points": sum(row["score"] for row in rows),
+        "possible_points": sum(row["max_score"] for row in rows),
         "record_ids": sorted(row["record_id"] for row in rows),
         "node_ids": sorted({row["node_id"] for row in rows}),
         "interval_level": level_width,
@@ -72,14 +82,14 @@ def estimate(rows, config):
         "interval": None,
         "level": "insufficient_evidence",
     }
-    if not possible:
+    if not rows:
         return result
-    a, b = alpha + earned, beta + possible - earned
+    a, b = alpha + sum(shares), beta + len(shares) - sum(shares)
     tail = (1 - level_width) / 2
     mean = a / (a + b)
     lower, upper = beta_quantile(tail, a, b), beta_quantile(1 - tail, a, b)
     result.update(estimate=round(mean, 3), interval=[round(lower, 3), round(upper, 3)])
-    if possible < config["min_points"]:
+    if len(rows) < config["min_evidence"]:
         level = "insufficient_evidence"
     elif lower >= config["mastered_lower"]:
         level = "mastered"

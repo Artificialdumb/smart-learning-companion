@@ -131,7 +131,8 @@ def build_catalog(source_dir):
                       'item_ids': item_ids})
 
     indicator_index = index_rows(indicators, 'indicator_id')
-    return {
+    from app.catalog.validation import validate_catalog  # shared with the normalized-input route
+    return validate_catalog({
         'topics': list(topics.values()), 'indicators': indicators, 'items': list(items.values()),
         'resources': list(resources.values()), 'nodes': nodes,
         'learning_relations': [
@@ -142,4 +143,4 @@ def build_catalog(source_dir):
              ]}
             for start, end, kind, reason in RELATIONS if start in indicator_index and end in indicator_index
         ],
-    }
+    })

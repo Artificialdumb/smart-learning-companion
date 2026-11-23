@@ -16,11 +16,12 @@ from app.a_pipeline import load_csv_batch
 from app.class_analysis import compare_classes
 from app.contracts import encode_json, usable_rows, with_run
 from app.diagnosis import diagnose_students
-from app.diagnosis.paths import learning_paths, prerequisite_graph
-from app.diagnosis.probes import PROBE_VERSION
-from app.recommendations import generate_plans, resource_index
+from app.catalog.validation import validate_catalog
+from app.diagnosis.paths import learning_paths
+from app.diagnosis.probes import bank_version, probe_bank
+from app.recommendations import generate_plans
 from app.recommendations.local_model import local_selector
-from app.rules import load_rules, rules_digest
+from app.rules import batch_rules, digest, load_rules, override_path, read_packaged
 from app.storage import Store
 
 DEFAULT_DB = Path("outputs/study.sqlite3")
@@ -30,16 +31,24 @@ RECOMMENDATION_RULES = "recommendations-1.0"
 EXPORT_ONLY_KEYS = ("exported_at", "adjustment_versions")
 
 
-def normalized_batch(source):
+def normalized_batch(source, *, frozen=None):
+    """Read a normalized batch; ``frozen`` receives packaged rules and probes when the package has them."""
     required = ("manifest.json", "catalog.json", "students.json", "responses.jsonl")
-    names = [*required, *(name for name in ("quality_report.json", "usable_responses.jsonl")
-                          if (source / name).is_file())]
+    optional = ("quality_report.json", "usable_responses.jsonl", "rules.json", "followup_probes.json")
+    names = [*required, *(name for name in optional if (source / name).is_file())]
     files = {name: (source / name).read_bytes() for name in names}
     manifest, catalog, students = (json.loads(files[name]) for name in required[:3])
     latest = [json.loads(line) for line in files["responses.jsonl"].splitlines() if line.strip()]
     if "usable_responses.jsonl" in files:
         usable_rows(latest, files["usable_responses.jsonl"])
     quality = json.loads(files["quality_report.json"]) if "quality_report.json" in files else None
+    if frozen is not None and "rules.json" in files:
+        frozen["rules"] = read_packaged(source / "rules.json", manifest.get("rules_sha256"))
+    if frozen is not None and "followup_probes.json" in files:
+        packaged = json.loads(files["followup_probes.json"])
+        if packaged.get("version") != manifest.get("followup_probe_version"):
+            raise ValueError("成果包中的 followup_probes.json 与 manifest.json 记录的追问题组版本不一致。")
+        frozen["probes"] = packaged
     manifest = {
         **{key: value for key, value in manifest.items() if key not in EXPORT_ONLY_KEYS},
         "upstream_source_files": manifest["source_files"],
@@ -66,53 +75,45 @@ def quality_for_latest(rows, usable):
     }
 
 
-def validate_catalog(catalog):
-    topics = index(catalog["topics"], "topic_id")
-    indicators = index(catalog["indicators"], "indicator_id")
-    items = index(catalog["items"], "item_id")
-    nodes = index(catalog["nodes"], "node_id")
-    resources = resource_index(catalog)
-    if not topics or not indicators or not items or not nodes:
-        raise ValueError("目录须包含主题、指标、题目和测验节点。")
-    for indicator in indicators.values():
-        if indicator["topic_id"] not in topics or any(
-            ref["resource_id"] not in resources for ref in indicator.get("references", [])
-        ):
-            raise ValueError(f"指标引用的主题或出处无法定位: {indicator['indicator_id']}")
-    for row in [*items.values(), *resources.values()]:
-        if not set(row["indicator_ids"]) <= indicators.keys():
-            raise ValueError(f"题目或资源引用了未知指标: {row}")
-    for resource_id, resource in resources.items():
-        if (resource["resource_type"] == "item") != (resource_id in items):
-            raise ValueError(f"题目与材料索引不一致: {resource_id}")
-    for relation in catalog.get("learning_relations", []):
-        if not {relation["from_indicator_id"], relation["to_indicator_id"]} <= indicators.keys():
-            raise ValueError("学习关系引用了未知指标。")
-    prerequisite_graph(catalog)
-    return {**catalog, "resources": list(resources.values())}
+def resolve_frozen(frozen, catalog):
+    """Rules and probes for this build: those carried by a package, otherwise the current settings."""
+    packaged = frozen.get("rules")
+    if packaged is not None and override_path() and digest(load_rules()) != digest(packaged):
+        raise ValueError("成果包已携带批次规则 rules.json，与 STUDY_RULES 指定的规则不一致。"
+                         "请取消 STUDY_RULES，或改用原始资料包重新构建。")
+    rules = packaged if packaged is not None else load_rules()
+    if "probes" in frozen:
+        bank, version = frozen["probes"]["probes"], frozen["probes"]["version"]
+        if bank_version(bank, rules["followup"]["criterion_cues"]) != version:
+            raise ValueError("成果包中的追问题组内容与其版本号不符。")
+    else:
+        bank, version = probe_bank(catalog, rules)
+    return rules, bank, version
 
 
 def build(source, db, *, reviews_path=None):
+    frozen = {}
     if (source / "manifest.json").is_file():
         if reviews_path is not None:
             raise ValueError("复核文件须与原始赛题资料包一起使用。")
-        input_manifest, catalog, students, rows, quality = normalized_batch(source)
+        input_manifest, catalog, students, rows, quality = normalized_batch(source, frozen=frozen)
         usable = usable_rows(rows)
     else:
         input_manifest, catalog, imported = load_csv_batch(source, reviews_path=reviews_path)
         students, rows = imported.students, imported.latest_responses
         usable, quality = imported.usable_responses, imported.quality_report
     catalog = validate_catalog(catalog)
+    rules, probes, probe_version = resolve_frozen(frozen, catalog)
     records = index(rows, "record_id")
     if quality is None:
         quality = quality_for_latest(rows, usable)
     if quality["usable_count"] != len(usable):
         raise ValueError("质量报告与有效作答数量不一致。")
 
-    diagnoses = diagnose_students(catalog, students, rows, usable)
+    diagnoses = diagnose_students(catalog, students, rows, usable, rules=rules)
     comparisons = compare_classes(catalog, students, usable)
     selector = local_selector()
-    by_student = generate_plans(catalog, diagnoses, records, select_resource=selector)
+    by_student = generate_plans(catalog, diagnoses, records, select_resource=selector, rules=rules)
     plans = index((plan for nodes in by_student.values() for plan in nodes.values()), "plan_id")
 
     run_id = uuid4().hex
@@ -120,21 +121,22 @@ def build(source, db, *, reviews_path=None):
         **input_manifest, "input_run_id": input_manifest["run_id"],
         "built_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "recommendation_rules_version": RECOMMENDATION_RULES,
-        "followup_probe_version": PROBE_VERSION,
-        "rules_sha256": rules_digest(),
+        "followup_probe_version": probe_version,
+        "rules_sha256": digest(rules),
         "recommendation_mode": "local_model_with_rule_fallback" if selector else "rules",
     })
     Store(db).publish({
         "manifest": manifest, "catalog": catalog, "students": index(students, "student_id"),
         "records": records, "quality_report": with_run(run_id, quality),
         "diagnoses": diagnoses, "comparisons": comparisons, "plans": plans,
+        "rules": rules, "probes": probes,
     })
     return run_id
 
 
-def case_examples(diagnoses, plans):
+def case_examples(diagnoses, plans, rules=None):
     cases = []
-    for example in load_rules()["export"]["case_examples"]:
+    for example in (rules or load_rules())["export"]["case_examples"]:
         kind, focus = example["kind"], example["indicator_id"]
         preferred = (example["student_id"], example["node_id"])
         chosen = next((
@@ -190,8 +192,12 @@ def export(db, run_id, out):
             with_run(run_id, learning_paths(catalog, reports, node_id))
             for reports in diagnoses.values() for node_id in reports
         ],
-        "cases.json": case_examples(diagnoses, plans),
+        "cases.json": case_examples(diagnoses, plans, batch_rules(batch)),
     }
+    if "rules" in batch:
+        # Batches built before freezing have no recorded rules; exporting today's defaults would misstate them.
+        outputs["rules.json"] = batch["rules"]
+        outputs["followup_probes.json"] = {"version": manifest["followup_probe_version"], "probes": batch["probes"]}
     out.parent.mkdir(parents=True, exist_ok=True)
     docs = ROOT / "docs"
     if not (docs / "contracts.md").is_file():

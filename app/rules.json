@@ -1,10 +1,10 @@
 {
   "_comment": "诊断、追问、推荐和导出使用的规则与关键词。可用环境变量 STUDY_RULES 指定一个 JSON 文件，按顶层分区覆盖其中的键。批次 manifest 记录生效规则的 rules_sha256。",
   "mastery": {
-    "_comment": "Beta-二项掌握度：prior 为 Beta 先验 [alpha, beta]；评分点满分合计低于 min_points 为证据不足；区间下限不低于 mastered_lower 为已掌握；均值不低于 developing_mean 为正在形成。",
+    "_comment": "掌握度指数：每条有效作答算一次观测，得分比例计入成功份额，再用 Beta 先验 prior=[alpha, beta] 平滑。有效作答少于 min_evidence 条为证据不足；区间下限不低于 mastered_lower 为已掌握；均值不低于 developing_mean 为正在形成。该指数描述得分比例，不是经过校准的掌握概率，见 docs/掌握度证据权重说明.md。",
     "prior": [1, 1],
     "interval_level": 0.9,
-    "min_points": 3,
+    "min_evidence": 3,
     "mastered_lower": 0.6,
     "developing_mean": 0.5
   },
@@ -42,6 +42,15 @@
       {"keywords": ["数量关系", "代入", "取值"], "hint": "先写出各量的含义和条件，再检查式子是否对应题意。", "condition": "独立列式，解释结果与原条件的对应关系。"}
     ],
     "default_cue": {"hint": "先圈出题目给出的条件，写出每一步的依据。", "condition": "独立完成一遍，保留过程并按原条件检验。"},
+    "_reviewed_comment": "以下文字与 skill_cues、default_cue、transfer.followup 一起构成经过审阅的提示模板（GET /api/hint-templates）。教师只使用模板时活动标记 hint_review=reviewed，自拟文字标记 custom；两者都经过防泄题检查。",
+    "generic_texts": {
+      "material_hints": ["读完后用自己的话说明方法。", "另写一个同类例子，解释每一步。"],
+      "material_condition": "能独立解释方法，并用例子说明什么时候使用。",
+      "practice_localized": "逐项核对过程最后一行与最终填写是否一致。",
+      "practice_general": "完成后回看每一步，标记需要重做的位置。",
+      "strength": "写出与之前题目不同的条件，再解释所用方法。",
+      "observe": "保留解题过程，标出犹豫或需要帮助的环节。"
+    },
     "matched_form_keyword": "化简",
     "transfer": {
       "indicator_keyword": "交集",

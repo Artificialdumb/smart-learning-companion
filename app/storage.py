@@ -7,6 +7,7 @@ from contextlib import closing
 from app.contracts import ContractError, encode_json, with_run
 from app.diagnosis.followup import evaluate_followup, followup_view
 from app.recommendations import validate_adjustment
+from app.rules import batch_rules
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS batches (
@@ -118,7 +119,7 @@ class Store:
             if expected_version != version:
                 raise ContractError("version_conflict", "计划已更新。请读取最新版本后再保存。", 409,
                                     {"adjustment_version": version})
-            activities = validate_adjustment(plan, edits, batch["catalog"])
+            activities = validate_adjustment(plan, edits, batch["catalog"], batch_rules(batch))
             db.execute("""
                 INSERT INTO adjustments VALUES (?, ?, ?, ?)
                 ON CONFLICT (run_id, plan_id) DO UPDATE SET

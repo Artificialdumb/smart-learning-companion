@@ -1,5 +1,8 @@
 """Original, fixed screening questions; answer keys stay on the server."""
 
+import hashlib
+import json
+
 from app.rules import load_rules
 
 PROBE_VERSION = "screening-1.1"
@@ -83,16 +86,31 @@ PROFILES = {
 }
 
 
-def profile_for(description):
+def profile_for(description, profile_cues=None):
     # 按 rules.json 中 followup.profile_cues 的顺序匹配课程描述；新增学科前须补充并审阅题组。
-    for profile, cues in load_rules()["followup"]["profile_cues"]:
+    for profile, cues in profile_cues or load_rules()["followup"]["profile_cues"]:
         if profile in PROFILES and any(cue in description for cue in cues):
             return profile
     return None
 
 
-def questions_for(description):
-    profile = profile_for(description)
+def probe_bank(catalog, rules):
+    """Freeze the screening questions of every indicator for one batch, with a content-derived version."""
+    bank = {
+        indicator["indicator_id"]: questions_for(indicator["description"], rules["followup"]["profile_cues"])
+        for indicator in catalog["indicators"]
+    }
+    return bank, bank_version(bank, rules["followup"]["criterion_cues"])
+
+
+def bank_version(bank, criterion_cues):
+    """Version string that changes whenever a question, answer key or dimension cue changes."""
+    content = json.dumps([bank, criterion_cues], ensure_ascii=False, sort_keys=True)
+    return f"{PROBE_VERSION}+{hashlib.sha256(content.encode()).hexdigest()[:12]}"
+
+
+def questions_for(description, profile_cues=None):
+    profile = profile_for(description, profile_cues)
     return [
         {"question_id": f"{profile}-{dimension}", "dimension": dimension,
          "prompt": prompt, "options": [

@@ -112,6 +112,7 @@ async function render() {
       const actions = {
         latest, resource,
         canAdjust: context.can_adjust,
+        templates: () => api("/hint-templates").then(body => body.templates),
         finding(id) {
           const finding = findings.get(id);
           detail("诊断依据", async () => [el("p", {}, finding.summary), evidenceButtons(finding.evidence, record)]);
