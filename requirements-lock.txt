@@ -1,4 +1,4 @@
-# 运行与测试依赖的锁定版本（2026-11-23 本地验证：Python 3.14 源环境；同步时另在干净 Python 3.12 环境验证）。
+# 运行与测试依赖的锁定版本（2026-11-23 本地验证：Python 3.14 源环境；同步时另在干净 Python 3.14 环境验证）。
 # 安装：python -m pip install -r requirements-lock.txt && python -m pip install --no-deps -e .
 # 设计方案 PDF 的可选依赖见 requirements-docs-lock.txt（PyMuPDF 为 AGPL-3.0/商业双许可）。
 annotated-doc==0.0.6
