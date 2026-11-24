@@ -22,7 +22,8 @@ class DesignDocTests(unittest.TestCase):
             pages = generate(db, run, out, "合成数据", tests=(53, 0, 2), students=200)
             self.assertLessEqual(pages, MAX_PAGES)
             with fitz.open(out) as document:
-                text = "".join(page.get_text() for page in document)
+                # Join wrapped lines so assertions do not depend on where the layout breaks.
+                text = "".join(page.get_text() for page in document).replace("\n", "")
         for heading in ("需求与分析范围", "数据与质量控制", "方法", "三名学生案例", "两班分析", "验证", "成果包字段", "复算说明"):
             self.assertIn(heading, text)
         self.assertIn("共 53 个，失败 0 个，跳过 2 个", text)

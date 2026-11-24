@@ -22,6 +22,7 @@ import fitz
 from app._analysis import index
 from app.cli import case_examples
 from app.diagnosis.followup import followup_view
+from app.diagnosis.mastery import mastered_min_responses
 from app.diagnosis.paths import learning_paths
 from app.rules import batch_rules
 from app.storage import Store
@@ -66,8 +67,39 @@ def pct(value):
     return "—" if value is None else f"{value:.0%}"
 
 
+DEPENDENCIES = [
+    ["FastAPI", "0.163.1", "MIT", "HTTP 接口"],
+    ["Starlette", "1.10.0", "BSD-3-Clause", "FastAPI 底层"],
+    ["Pydantic", "2.14.3", "MIT", "请求校验"],
+    ["Uvicorn", "0.54.0", "BSD-3-Clause", "本地服务"],
+    ["HTTPX", "0.28.1", "BSD-3-Clause", "接口测试"],
+    ["PyMuPDF", "2.1", "AGPL-3.0 / 商业双许可", "仅本地生成 PDF"],
+]
+RELATION = {"prerequisite": "前置", "transfer": "迁移"}
+
+
+def relation_rows(batch):
+    indicators = index(batch["catalog"]["indicators"], "indicator_id")
+    name = lambda i: f"{esc(i)} {esc(indicators.get(i, {}).get('description', ''))}"
+    return [[name(r["from_indicator_id"]), name(r["to_indicator_id"]),
+             RELATION.get(r["relation_type"], esc(r["relation_type"])), esc(r.get("reason", ""))]
+            for r in batch["catalog"].get("learning_relations", [])]
+
+
+def ceiling_text(batch):
+    capped = {}
+    for nodes in batch["diagnoses"].values():
+        for node_id, report in nodes.items():
+            for row in report["indicators"]:
+                m = row["mastery"]
+                if m.get("mastered_reachable") is False and m.get("response_capacity"):
+                    capped[row["indicator_id"], node_id] = m["response_capacity"]
+    return "、".join(f"{i}（截至 {n} 共 {c} 个题位）" for (i, n), c in sorted(capped.items())) or "无"
+
+
 def run_tests():
-    suite = unittest.defaultTestLoader.discover(str(ROOT / "tests"), top_level_dir=str(ROOT))
+    # tests/ is not a package; discover it as its own top level, as `unittest discover -s tests` does.
+    suite = unittest.TestLoader().discover(str(ROOT / "tests"))
     result = unittest.TextTestRunner(stream=io.StringIO(), verbosity=0).run(suite)
     return result.testsRun, len(result.failures) + len(result.errors), len(result.skipped)
 
@@ -145,6 +177,17 @@ def section_classes(batch):
                              pct(cls["score_rate"])])
                 name = ""
         parts.append(table(["指标", "班级", "覆盖人数/名册", "有效作答", "得分/满分", "得分率"], rows))
+        summary = report.get("summary") or {}
+        if summary.get("largest_gaps"):
+            parts.append("<p>得分率差值最大的指标：" + "；".join(
+                f"{esc(indicators[g['indicator_id']]['description'])}（{g['item_count']} 道共同题，"
+                + "，".join(f"{esc(c['class_id'])} {c['score_sum']}/{c['max_score_sum']}" for c in g["classes"])
+                + f"，差 {g['rate_gap'] * 100:.1f} 个百分点）" for g in summary["largest_gaps"]) + "</p>")
+        if summary.get("shared_misses"):
+            parts.append("<p>两班共同失分评分点：" + "；".join(
+                f"{esc(s['item_id'])}“{esc(s['criterion'])}”（"
+                + "，".join(f"{esc(c['class_id'])} {c['missed_students']}/{c['scored_students']} 人" for c in s["classes"])
+                + "）" for s in summary["shared_misses"]) + "</p>")
         commons = [f for row in report["indicators"] for f in row["findings"] if f["kind"] == "common_miss"]
         if commons:
             parts.append("<p>共性失分（同班同题同一评分点 ≥ 2 人）：" + "；".join(
@@ -189,6 +232,9 @@ def build_html(batch, plans, data_label, tests, calibration):
 <p>以评分点为最小证据单位。失分评分点生成“针对性巩固”发现，得分评分点生成“已有表现”，已测但无有效作答生成“补充观察”。简单整式题中，若只差结果评分点、过程末行与参考答案一致而最终填写仅符号不同，自动定位到出错步骤。每条发现带作答记录编号、评分点编号和步骤号，可在网页逐条回查。</p>
 <h3>3.2 得分比例指数（掌握度）</h3>
 <p>每条有效作答按得分比例记一次证据，以 Beta({rules['mastery']['prior'][0]},{rules['mastery']['prior'][1]}) 先验平滑，累计本测验及更早测验，给出均值和 {rules['mastery']['interval_level']:.0%} 区间。有效作答少于 {rules['mastery']['min_evidence']} 条为“证据不足”；区间下限 ≥ {rules['mastery']['mastered_lower']} 为“已掌握”；均值 ≥ {rules['mastery']['developing_mean']} 为“正在形成”。<b>该指数描述经平滑的得分比例，结合证据条数和区间阅读。</b>证据单位的选择见 6.2。</p>
+<p>按上述阈值，全部满分时至少需要 {mastered_min_responses(rules['mastery'])} 条有效作答，区间下限才能达到 {rules['mastery']['mastered_lower']}。累计题位少于该条数的指标等级上限为“正在形成”：{esc(ceiling_text(batch))}。</p>
+<h3>3.2.1 课程目录中的必要联系</h3>
+{table(["起点指标", "终点指标", "关系", "依据"], relation_rows(batch))}
 <h3>3.3 两班对比</h3>
 <p>只在两个班都有有效作答的共同题上比较，并同时给出覆盖人数和得分两个分母；同班同题同一评分点至少 2 人失分才列为共性问题；没有共同题时明确标注不可比较。</p>
 <h3>3.4 学习建议、教师调整与防泄题</h3>
@@ -238,6 +284,10 @@ def build_html(batch, plans, data_label, tests, calibration):
 5）运行测试：<code>python -m unittest discover -s tests -v</code>；赛题回归测试需设置 STUDY_CONTEST_SOURCE。</p>
 <p class="note">一致性说明：同一输入两次构建，诊断、对比、计划、规则与题组完全相同，只有批次编号和构建时间不同。若设置 STUDY_MODEL 启用本地模型挑选材料，计划可能因模型输出不同而变化，manifest 的 recommendation_mode 会记录这一点。</p>
 <p class="note">输入文件：{esc('；'.join(s['path'] for s in sources[:12]))}{' 等' if len(sources) > 12 else ''}</p>
+
+<h3>8.1 开源组件与模型</h3>
+{table(["组件", "版本", "许可", "用途"], DEPENDENCIES)}
+<p class="note">仓库与成果包不包含预训练模型权重。本批次推荐模式：{esc(manifest.get("recommendation_mode", "rules"))}。设置 STUDY_MODEL 后调用本机 OpenAI 兼容接口，只在已校验候选中选材，使用者另行登记模型名称、版本与许可。</p>
 
 <h2>9 运行条件与下一阶段</h2>
 <p>1）规则诊断覆盖现有课程指标，简单整式符号差异支持步骤定位；2）得分比例指数对作答等权累计，阈值按冻结规则执行；3）追问反馈与原题证据并列展示；4）下一阶段开展教师评价、独立数据复算和新题观察；5）共享部署配置账号、班级权限和HTTPS。</p>

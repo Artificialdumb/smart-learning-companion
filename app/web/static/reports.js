@@ -14,10 +14,14 @@ export function masteryLine(mastery) {
   }
   const [low, high] = mastery.interval;
   const count = mastery.evidence_count ?? mastery.record_ids.length;
+  const ceiling = mastery.level !== "mastered" && mastery.mastered_reachable === false
+    ? el("span", {class: "muted"},
+      ` · 截至本节点该指标最多 ${mastery.response_capacity} 条作答，“已掌握”至少需 ${mastery.mastered_min_responses} 条满分作答`)
+    : null;
   return el("p", {class: "meta number",
     title: "得分比例指数按每条有效作答的得分比例平滑计算，结合证据条数和90%区间阅读。"}, tag(mastery.level),
     ` 得分比例指数 ${metric(mastery.estimate)}（${Math.round(mastery.interval_level * 100)}% 区间 ${metric(low)}–${metric(high)}）`,
-    ` · 依据 ${mastery.node_ids.length} 次测验 ${count} 条有效作答`);
+    ` · 依据 ${mastery.node_ids.length} 次测验 ${count} 条有效作答`, ceiling);
 }
 
 export function diagnosisPanel(report, model, openRecord, openFollowup, openPath) {
@@ -50,9 +54,30 @@ export function diagnosisPanel(report, model, openRecord, openFollowup, openPath
   ));
 }
 
+function classSummary(summary, model, openRecord) {
+  if (!summary) return null;
+  const name = id => model.indicators.get(id)?.description ?? id;
+  const rate = c => `${c.class_id} ${c.score_sum}/${c.max_score_sum}（${metric(c.score_sum / c.max_score_sum)}）`;
+  return el("article", {class: "stack class-summary"},
+    el("h3", {}, "本测验群体摘要"),
+    summary.largest_gaps.length ? table(["指标", "共同题", "两班得分率", "差值"],
+      summary.largest_gaps.map(g => [name(g.indicator_id), String(g.item_count),
+        g.classes.map(rate).join("；"), `${(g.rate_gap * 100).toFixed(1)} 个百分点`]))
+      : el("p", {class: "meta"}, "本测验没有可比较的指标。"),
+    summary.shared_misses.length ? el("div", {class: "findings"},
+      el("p", {class: "meta"}, "两班均有 2 人以上失分的评分点（按合计失分比例排序）："),
+      summary.shared_misses.map(s => el("div", {},
+        el("p", {}, `${s.item_id} “${s.criterion}”（${name(s.indicator_id)}）：`
+          + s.classes.map(c => `${c.class_id} ${c.missed_students}/${c.scored_students} 人失分`).join("，")),
+        evidenceButtons(s.classes.flatMap(c => c.record_ids).map(record_id => ({
+          record_id, rubric_point_ids: [s.rubric_point_id]})), openRecord))))
+      : el("p", {class: "meta"}, "本测验没有两班共同的失分评分点。"));
+}
+
 export function classesPanel(report, model, openResource, openRecord) {
   return panel("同一测验的两班比较",
     el("span", {class: "tag"}, `共同题共 ${report.comparison_item_ids.length} 道`),
+    classSummary(report.summary, model, openRecord),
     report.indicators.map(row =>
       el("article", {class: "stack"},
         el("h3", {}, model.indicators.get(row.indicator_id)?.description ?? row.indicator_id),

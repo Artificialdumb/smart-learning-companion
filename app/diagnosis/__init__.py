@@ -49,10 +49,12 @@ def diagnose_students(catalog, students, latest_responses, usable_responses, *, 
                 raise ValueError(f"最新作答与有效视图的内容不一致: {key}")
 
     result = {}
+    minimum = mastery.mastered_min_responses(mastery_config)
     for student in sorted(roster):
         result[student] = {}
         for node, indicators in sorted(scope.items()):
             history = mastery.cumulative_rows(usable, student, node, scope, node_dates)
+            capacity = mastery.cumulative_capacity(node, scope, node_dates)
             summaries = []
             for indicator, item_ids in indicators.items():
                 coverage = dict.fromkeys(
@@ -79,7 +81,9 @@ def diagnose_students(catalog, students, latest_responses, usable_responses, *, 
                         "supported" if rows else "insufficient" if item_ids else "not_assessed"
                     ),
                     "findings": findings,
-                    "mastery": mastery.estimate(history.get(indicator, []), mastery_config),
+                    "mastery": mastery.with_reachability(
+                        mastery.estimate(history.get(indicator, []), mastery_config),
+                        capacity.get(indicator, 0), minimum),
                 })
             result[student][node] = {"student_id": student, "node_id": node, "indicators": summaries}
     return result

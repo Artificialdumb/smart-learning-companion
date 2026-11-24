@@ -27,7 +27,7 @@ class_report = {"run_id": run_id, **comparisons[node_id]}
 | `score_sum`、`max_score_sum`、`score_rate` | 只汇总有效记录。有效零分正常计入。无有效记录时两个合计为 0、得分率为 `null`。 |
 | `evidence_status` | `supported` 有至少一条有效作答，可以描述已观察到的表现。 `insufficient` 已测但无有效作答。 `not_assessed` 节点题库未覆盖。 |
 | `findings` | `strength` 描述已完成的题或得分评分点，`practice_needed` 标出本次作答的失分和依据，`observe_more` 说明证据不足及缺证据分类。 |
-| `mastery` | 得分比例指数（`interpretation: "score_share_index"`）。汇总该生在本节点及测验日期不晚于本节点的所有节点、本指标下的有效作答，每条作答记一次证据（`evidence_unit: "response"`、`evidence_count`），按得分比例累计 `score_share_sum`，以 `prior` 为先验得到平滑均值 `estimate` 与 `interval_level` 区间 `interval`；另列 `earned_points`、`possible_points`、`record_ids`、`node_ids` 供核对。`level`：有效作答少于 `min_evidence` 条为 `insufficient_evidence`；区间下限不低于 `mastered_lower` 为 `mastered`；均值不低于 `developing_mean` 为 `developing`；否则 `needs_support`。无证据时 `estimate`、`interval` 为 `null`。权重选择与验证见 [掌握度证据权重说明](../evaluation/掌握度证据权重说明.md)。 |
+| `mastery` | 得分比例指数（`interpretation: "score_share_index"`）。汇总该生在本节点及测验日期不晚于本节点的所有节点、本指标下的有效作答，每条作答记一次证据（`evidence_unit: "response"`、`evidence_count`），按得分比例累计 `score_share_sum`，以 `prior` 为先验得到平滑均值 `estimate` 与 `interval_level` 区间 `interval`；另列 `earned_points`、`possible_points`、`record_ids`、`node_ids` 供核对。`level`：有效作答少于 `min_evidence` 条为 `insufficient_evidence`；区间下限不低于 `mastered_lower` 为 `mastered`；均值不低于 `developing_mean` 为 `developing`；否则 `needs_support`。无证据时 `estimate`、`interval` 为 `null`。`response_capacity` 为同一累计节点范围内该指标的适用题位数，`mastered_min_responses` 为按当前先验、区间和 `mastered_lower` 计算的最少满分作答条数（默认规则为 5），`mastered_reachable` 表示 `response_capacity` 是否达到该条数；为 `false` 时该指标的等级上限为 `developing`，页面同时显示两项数字。权重选择与验证见 [掌握度证据权重说明](../evaluation/掌握度证据权重说明.md)。 |
 | `finding_id`、`evidence` | 发现编号在批次内可定位。证据项含 `record_id`、`rubric_point_ids`，步骤如已定位则带 `step_numbers`，按 `steps` 数组从 1 编号。补充观察证据为空。 |
 
 一条有效作答可以支持描述该题的实际过程、得分或失分。汇总可以并列列出多次表现及各自证据。关于反复出现的问题，需要多个不同作答事件，本版在个人结果中逐题列举失分。通用评分点如“答案正确”只能定位本题表现。只有末行化简结果与参考结果一致、前序评分点全得、结果评分点失分、最终表达式逐项仅符号不同的简单情况，才自动定位末行与最终填答的差异。其他失分以评分点为证据。
@@ -42,6 +42,7 @@ class_report = {"run_id": run_id, **comparisons[node_id]}
 | `class_size`、`covered_students`、`coverage_rate` | 名册人数、共同比较范围内有效作答的学生去重数、两者比值（覆盖人数除以班级人数）。 |
 | `valid_count`、`score_sum`、`max_score_sum`、`score_rate` | 共同题范围的有效作答数、总得分、相应满分、两者比值（总得分除以相应满分）。无共同题时前三项为 0，得分率为 `null`。 |
 | `findings` | `observed_difference` 给出同范围内有差异的分数与覆盖。 `common_miss` 要求同班同题同一评分点至少 2 名学生失分，提供 `class_id`、`item_id`、`rubric_point_id`、`missed_students`、`scored_students`、`record_ids`。 `not_comparable` 说明无比较范围的原因。 |
+| `summary` | 节点级群体摘要。`largest_gaps` 列出两班共同题得分率差值绝对值最大的 3 项指标，含题数、两班得分与满分、覆盖人数及 `rate_gap`（DC01 减 DC02，可由分子分母复算）。`shared_misses` 列出两班都构成共性失分的评分点，按两班合计失分人数 / 有该评分点成绩人数排序，取前 5 项，保留各班失分人数与 `record_ids`。 |
 
 同题可映射多个指标，对应指标可重复引用该题。计算主题或节点汇总时按作答事件去重，使用题号并集回筛记录。分数比较为观察到的同节点结果，共同题中的作答人数可因题、因班变化。跨节点若要判断变化，需要为同题或明确可比题组另做统计。
 

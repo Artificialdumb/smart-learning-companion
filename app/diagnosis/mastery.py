@@ -101,6 +101,45 @@ def estimate(rows, config):
     return result
 
 
+def mastered_min_responses(config, limit=200):
+    """Fewest all-full-score responses whose interval lower bound reaches ``mastered_lower``.
+
+    With a Beta(1,1) prior, a 90% interval and mastered_lower 0.6 this is 5: three or four
+    full-score responses leave the 5% quantile at 0.473 or 0.549. Returns None when no
+    count up to ``limit`` reaches the threshold.
+    """
+    alpha, beta = config["prior"]
+    tail = (1 - config["interval_level"]) / 2
+    for n in range(max(1, config["min_evidence"]), limit + 1):
+        if beta_quantile(tail, alpha + n, beta) >= config["mastered_lower"]:
+            return n
+    return None
+
+
+def with_reachability(result, capacity, minimum):
+    """Attach how many responses the assessed scope allows and whether 'mastered' is reachable."""
+    result.update(
+        response_capacity=capacity,
+        mastered_min_responses=minimum,
+        mastered_reachable=minimum is not None and capacity >= minimum,
+    )
+    return result
+
+
+def cumulative_capacity(node, scope, node_dates):
+    """Eligible item slots per indicator over the same nodes that ``cumulative_rows`` reads."""
+    date = node_dates.get(node)
+    nodes = [node] if not date else [
+        other for other, other_date in node_dates.items()
+        if other == node or (other_date and other_date <= date)
+    ]
+    capacity = {}
+    for other in nodes:
+        for indicator, item_ids in scope.get(other, {}).items():
+            capacity[indicator] = capacity.get(indicator, 0) + len(item_ids)
+    return capacity
+
+
 def cumulative_rows(usable, student, node, scope, node_dates):
     """Usable rows per indicator from this node and every node assessed no later than it."""
     date = node_dates.get(node)

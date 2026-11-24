@@ -14,13 +14,13 @@ JSON 和 JSONL 使用 UTF-8。编号为字符串，分数和计数为整数，�
 | `quality_report.json` | `run_id` | 原始行数、事件数、最新评分状态计数、有效记录数和问题明细。A 的报告还含 `response_source_sha256`、`reviews` 和 `unresolved_review_count`。输入只含最新作答时，缺少的原始行数和问题明细为 `null`。 |
 | `learning_requirements.json` | `run_id` | 主题、指标和学习内容间的关系。 |
 | `diagnosis.json` | `student_id + node_id` | 个人指标覆盖、有效得分、证据状态和诊断发现。发现中的证据按 `record_id`、评分点编号和从 1 起算的步骤编号回查。 |
-| `class_comparison.json` | `node_id` | 同节点两班共同题、覆盖人数、名册分母、有效作答数、得分分子分母和共性失分证据。 |
+| `class_comparison.json` | `node_id` | 同节点两班共同题、覆盖人数、名册分母、有效作答数、得分分子分母、共性失分证据，以及节点级群体摘要 `summary`（最大得分率差值、两班共同失分评分点）。 |
 
 作答评分状态分为 `graded`（已评分）、`pending`（待评分）、`unanswered`（未作答）。校验状态为 `valid` 或 `needs_review`。分析使用最新且 `graded + valid` 的作答，零分照常计入。指标状态分为 `supported`（有作答证据）、`insufficient`（已测但证据不足）、`not_assessed`（本节点未测）。个人覆盖和班级得分计算见 [integration.md](integration.md)。
 
 题目满分和各评分点满分须为正整数，评分点满分之和须等于题目满分。作答修订须为正整数，`steps` 须为字符串数组，无步骤时用 `[]`。有效作答的事件编号须对应学生、节点与题目，已隔离的待复核记录可保留原始身份或评分异常。
 
-个人指标增加 `mastery`，按每条有效作答的得分比例计一次证据，包含 `evidence_count`、`score_share_sum`、原始得分与满分、证据记录和节点、平滑均值、区间及等级。`interpretation=score_share_index` 表示经平滑的得分比例。日期范围、等权假设与阈值见联调说明，后续通过教师参考判断与新题结果评估等级区分能力。
+个人指标增加 `mastery`，按每条有效作答的得分比例计一次证据，包含 `evidence_count`、`score_share_sum`、原始得分与满分、证据记录和节点、平滑均值、区间及等级；`response_capacity`、`mastered_min_responses`、`mastered_reachable` 说明该指标在累计范围内能否达到“已掌握”。`interpretation=score_share_index` 表示经平滑的得分比例。日期范围、等权假设与阈值见联调说明，后续通过教师参考判断与新题结果评估等级区分能力。
 
 A 生成的目录引用含可直接展示的 `locator`。已核实版本的课标引用另含 `section`、`clauses`，教材引用另含 `section`、`pdf_pages` 和 `printed_page_range`。PDF 页码从 1 开始，区间包含两端。学习关系的 `references` 指向支撑关系的指标与同一目录资源。
 
