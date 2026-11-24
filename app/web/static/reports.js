@@ -15,7 +15,7 @@ export function masteryLine(mastery) {
   const [low, high] = mastery.interval;
   const count = mastery.evidence_count ?? mastery.record_ids.length;
   return el("p", {class: "meta number",
-    title: "得分比例指数：按有效作答的得分比例平滑估计，不是经过校准的掌握概率。"}, tag(mastery.level),
+    title: "得分比例指数按每条有效作答的得分比例平滑计算，结合证据条数和90%区间阅读。"}, tag(mastery.level),
     ` 得分比例指数 ${metric(mastery.estimate)}（${Math.round(mastery.interval_level * 100)}% 区间 ${metric(low)}–${metric(high)}）`,
     ` · 依据 ${mastery.node_ids.length} 次测验 ${count} 条有效作答`);
 }

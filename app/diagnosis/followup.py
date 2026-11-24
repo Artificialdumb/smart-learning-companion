@@ -176,14 +176,14 @@ def evaluate_followup(batch, student_id, node_id, indicator_id, probe_version, a
         if uncertain:
             conclusion += "另有未确定作答，需继续观察。"
     elif uncertain:
-        conclusion = "存在未确定作答，证据不足以区分错因。"
+        conclusion = "存在未确定作答，请结合原题过程继续核查对应维度。"
     else:
-        conclusion = "本次小题均通过，尚未复现原题错误；请回看原题过程与最终填写。"
+        conclusion = "本次小题均通过，请对照原题过程、评分点与最终填写继续复查。"
     return {
         "probe_version": view["probe_version"], "submitted_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "finding_ids": view["finding_ids"], "evidence": view["evidence"],
         "linked_rubric_points": linked,
         "checks": checks, "suspected_causes": gaps, "uncertain_dimensions": uncertain,
         "conclusion": conclusion,
-        "limitation": "每个维度仅一道小题，结果是核查线索，不是原题错因定论；重复作答不用于证明学习提升。",
+        "limitation": "每个维度安排一道核查题，教师结合原题评分点确认错因。学习变化通过后续新题作答记录观察。",
     }

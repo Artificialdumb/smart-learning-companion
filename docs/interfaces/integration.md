@@ -16,7 +16,7 @@ class_report = {"run_id": run_id, **comparisons[node_id]}
 - 输入为 JSON 反序列化后的字典记录。目录、名册和评分点集合可传记录列表或按业务编号索引的字典，作答可传字典记录的可迭代对象。名册含全体学生，班级比较要求两个班。目录须含 `indicators`、`items`、`nodes` 及其题目映射。
 - `latest_responses` 保留原评分状态与校验状态，复核冲突可留下多条关联记录。 `usable_responses` 为 A 提供的最新且 `graded + valid` 的视图，须包含总分、目录满分及评分点成绩。B 检查学生、节点、题号、分数范围、评分点和记录唯一性，避免同一学生在同节点同题重复计分。
 - 作答引用按同批 `record_id` 回查。样例的 `responses.jsonl` 保存最新版本，交接时由 A/C 按 `run_id + record_id` 提供详情。记录中的 `revision` 可用于验证证据版本。
-- 函数内存返回分别按 `student_id → node_id` 和 `node_id` 索引。导出文件均为 JSON 数组，每个顶层对象带 `run_id`。字段的示例值可用 [合成输入](../fixtures/synthetic/) 生成。
+- 函数内存返回分别按 `student_id → node_id` 和 `node_id` 索引。导出文件均为 JSON 数组，每个顶层对象带 `run_id`。字段的示例值可用 仓库中的`fixtures/synthetic`合成输入 生成。
 
 ## 个人诊断字段
 
@@ -27,7 +27,7 @@ class_report = {"run_id": run_id, **comparisons[node_id]}
 | `score_sum`、`max_score_sum`、`score_rate` | 只汇总有效记录。有效零分正常计入。无有效记录时两个合计为 0、得分率为 `null`。 |
 | `evidence_status` | `supported` 有至少一条有效作答，可以描述已观察到的表现。 `insufficient` 已测但无有效作答。 `not_assessed` 节点题库未覆盖。 |
 | `findings` | `strength` 描述已完成的题或得分评分点，`practice_needed` 标出本次作答的失分和依据，`observe_more` 说明证据不足及缺证据分类。 |
-| `mastery` | 得分比例指数（`interpretation: "score_share_index"`，不是掌握概率）。汇总该生在本节点及测验日期不晚于本节点的所有节点、本指标下的有效作答，每条作答记一次证据（`evidence_unit: "response"`、`evidence_count`），按得分比例累计 `score_share_sum`，以 `prior` 为先验得到平滑均值 `estimate` 与 `interval_level` 区间 `interval`；另列 `earned_points`、`possible_points`、`record_ids`、`node_ids` 供核对。`level`：有效作答少于 `min_evidence` 条为 `insufficient_evidence`；区间下限不低于 `mastered_lower` 为 `mastered`；均值不低于 `developing_mean` 为 `developing`；否则 `needs_support`。无证据时 `estimate`、`interval` 为 `null`。权重选择与验证见 [掌握度证据权重说明](掌握度证据权重说明.md)。 |
+| `mastery` | 得分比例指数（`interpretation: "score_share_index"`）。汇总该生在本节点及测验日期不晚于本节点的所有节点、本指标下的有效作答，每条作答记一次证据（`evidence_unit: "response"`、`evidence_count`），按得分比例累计 `score_share_sum`，以 `prior` 为先验得到平滑均值 `estimate` 与 `interval_level` 区间 `interval`；另列 `earned_points`、`possible_points`、`record_ids`、`node_ids` 供核对。`level`：有效作答少于 `min_evidence` 条为 `insufficient_evidence`；区间下限不低于 `mastered_lower` 为 `mastered`；均值不低于 `developing_mean` 为 `developing`；否则 `needs_support`。无证据时 `estimate`、`interval` 为 `null`。权重选择与验证见 [掌握度证据权重说明](../evaluation/掌握度证据权重说明.md)。 |
 | `finding_id`、`evidence` | 发现编号在批次内可定位。证据项含 `record_id`、`rubric_point_ids`，步骤如已定位则带 `step_numbers`，按 `steps` 数组从 1 编号。补充观察证据为空。 |
 
 一条有效作答可以支持描述该题的实际过程、得分或失分。汇总可以并列列出多次表现及各自证据。关于反复出现的问题，需要多个不同作答事件，本版在个人结果中逐题列举失分。通用评分点如“答案正确”只能定位本题表现。只有末行化简结果与参考结果一致、前序评分点全得、结果评分点失分、最终表达式逐项仅符号不同的简单情况，才自动定位末行与最终填答的差异。其他失分以评分点为证据。
@@ -47,7 +47,7 @@ class_report = {"run_id": run_id, **comparisons[node_id]}
 
 ## C 模块联调
 
-安装方式见 [README](../README.md)。在仓库根目录执行下列命令。构建命令打印新批次编号。
+按代码仓库README配置安装环境。在仓库根目录执行下列命令。构建命令打印新批次编号。
 
 ```sh
 python -m app.cli build --source fixtures/synthetic
@@ -107,8 +107,8 @@ python -m app.cli build --source data/赛题资料包 --reviews data/复核决�
 
 个人页的失分指标下，点击“错因追问”，由学生独立完成 3–4 道小题或选择“不确定”，提交后查看逐维度反馈。题目按本次失分评分点排序：评分标准文字按 `app/rules.json` 的 `followup.criterion_cues` 归入概念理解、计算执行或条件理解，对应维度的小题排在最前并标注关联评分点（`focus`、`rubric_point_ids`），接口同时返回 `linked_rubric_points`。诊断已定位出错步骤且过程末行或最终填写之一与参考答案一致时，另用该生本人的过程与填写生成一道“过程与作答一致”核对题；这道题的选项包含参考答案，仅用于测验后的反思。刷新页面后重新打开，可以读到最近一次结果。两个窗口同时作答时，旧版本提交被拒绝，表单选择保留；点击“重新读取（清除本次选择）”后再作答。合成批次可用 S01 / NX 的“去括号与合并”演示完整流程。
 
-点击同一指标的“查看补学路径”，按前置顺序查看补学或补充观察步骤，打开原作答证据、对应学习卡和教材。课程目录未声明前置关系时，只展示当前指标，不自动补造知识依赖。目录中的“迁移”关系仍在课程材料页展示，不纳入前置补学路径。
+点击同一指标的“查看补学路径”，按前置顺序查看补学或补充观察步骤，打开原作答证据、对应学习卡和教材。课程目录未声明前置关系时，展示当前指标。目录中的“迁移”关系仍在课程材料页展示，不纳入前置补学路径。
 
-当前追问使用自行编写的固定数学小题，覆盖已有九个课程指标，八套题组共 24 题。选题依据为指标描述；改动课程描述时应核对匹配结果。新增学科需补充题组并审阅。每维度一道小题仅用于提出核查线索，不能代替教师判断或证明诊断准确率。追问不会调用外部模型。
+当前追问使用自行编写的固定数学小题，覆盖已有九个课程指标，八套题组共 24 题。选题依据为指标描述；改动课程描述时应核对匹配结果。新增学科需补充题组并审阅。每维度安排一道小题，教师结合原题评分点确认错因。题组在本地按冻结配置生成。
 
 模块入口：`app.diagnosis.followup.followup_view / evaluate_followup` 接收同批快照；`app.diagnosis.paths.learning_paths(catalog, diagnoses[student_id], node_id)` 返回补学路径。HTTP 与 CLI 导出调用相同路径生成函数，追问写入由 `Store.save_followup` 在单次事务中校验版本并保存。B 原有 `diagnose_students` 的返回结构保持兼容。

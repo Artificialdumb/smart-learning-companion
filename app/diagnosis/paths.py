@@ -74,7 +74,7 @@ def learning_paths(catalog, reports, node_id):
             "target_indicator_id": target, "steps": steps, "relations": relations,
             "priority_check_ids": [s["indicator_id"] for s in steps
                                    if s["indicator_id"] != target and s["action"] in {"practice", "check"}],
-            "note": ("按前置顺序核查与补学；关系不能单独证明本次失分原因。" if ancestors else
+            "note": ("按课程前置顺序核查与补学，并结合每步作答证据确认学习需求。" if ancestors else
                      "目录未提供该指标的前置关系，先复习当前指标。"),
         })
     return {"student_id": reports[node_id]["student_id"], "node_id": node_id, "paths": paths,

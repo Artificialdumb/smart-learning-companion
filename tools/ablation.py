@@ -11,8 +11,7 @@ Conditions, built from the same batch so only the information shown differs:
 the three versions of each case appear in random order under neutral labels (甲/乙/丙),
 an empty rating sheet, and a separate key file that teachers must not see.
 ``analyze`` joins returned rating sheets with the key and reports per-condition means,
-paired sign tests and rater agreement. It reports what was observed; it does not turn
-ratings into claims about diagnostic accuracy or teaching effect.
+paired sign tests and rater agreement. The report summarizes teacher ratings of evidence, actionability and case fit.
 
 Usage:
   python -m tools.ablation packet --db outputs/study.sqlite3 --run-id <id> --out outputs/ablation [--per-kind 6] [--seed 1]
@@ -233,8 +232,8 @@ def analyze(key_path, rating_paths):
                         agree += abs(peer - value) <= 1
         lines.append(f"评分一致性：评分人 1 与其他评分人相差不超过 1 分的比例 {agree}/{total}。")
     lines.append("")
-    lines.append("说明：评分反映教师对依据和建议的主观评价，不等于诊断准确率或教学效果。"
-                 "样本量小时 p 值不稳定，应同时报告胜负计数。")
+    lines.append("评分反映教师对依据充分性、建议可执行性和个案适配性的评价。"
+                 "配对统计同时列出案例胜负计数与 p 值。")
     return "\n".join(lines)
 
 

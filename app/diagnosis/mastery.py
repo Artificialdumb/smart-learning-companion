@@ -5,11 +5,11 @@ to the "earned" side and 1 - s/m to the "missed" side of a Beta prior, so the
 weight of a response does not depend on how many points the rubric splits it into
 (1/2 and 10/20 are the same evidence). Score units and rubric points within one
 response are strongly correlated, and counting them as independent trials made
-intervals too narrow (see docs/掌握度证据权重说明.md and tools/mastery_calibration.py).
+intervals too narrow (see docs/evaluation/掌握度证据权重说明.md and tools/mastery_calibration.py).
 
-The result is an index of the observed score share, smoothed toward the prior. It is
-not a calibrated probability that the student has mastered the indicator: nothing in
-the data links the index to an external mastery criterion.
+The result is an index of the observed score share, smoothed toward the prior.
+Read the index with its interval and response count. Teacher reference judgments
+and new-item performance are the planned calibration criteria.
 """
 
 import math

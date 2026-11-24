@@ -2,7 +2,7 @@ name: tests
 
 # Runs the synthetic and boundary regression suite on every push and pull request.
 # Contest-data regressions skip automatically: the restricted contest package is never
-# stored in the repository or in CI (see docs/依赖与来源登记.md).
+# stored in the repository or in CI (see docs/delivery/依赖与来源登记.md).
 on:
   push:
   pull_request:

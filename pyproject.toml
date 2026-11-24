@@ -21,4 +21,4 @@ include = ["app*", "tools*"]
 "app.web" = ["static/*"]
 
 [tool.setuptools.data-files]
-"share/smart-learning-companion" = ["docs/contracts.md", "docs/integration.md"]
+"share/smart-learning-companion" = ["docs/interfaces/contracts.md", "docs/interfaces/integration.md", "docs/evaluation/掌握度证据权重说明.md"]

@@ -68,6 +68,8 @@ class BatchWorkflowTests(unittest.TestCase):
         plans = json.loads((report_dir / "recommendations.json").read_bytes())
         self.assertIn(saved.json(), plans)
         self.assertTrue((report_dir / "contracts.md").exists())
+        self.assertTrue((report_dir / "掌握度证据权重说明.md").exists())
+        self.assertNotIn("../evaluation/", (report_dir / "integration.md").read_text(encoding="utf-8"))
         rebuilt = build(report_dir, self.db)
         self.assertNotEqual(rebuilt, run)
 

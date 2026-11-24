@@ -26,7 +26,7 @@ export function followupPanel(initial, save, reload, openRecord, drafts) {
     }
     const linked = view.linked_rubric_points ?? [];
     const form = el("form", {}, el("p", {class: "meta"},
-      `请学生独立完成这 ${view.questions.length} 道小题；不确定时如实选择。提交后保存反馈，不改变原测验分数。`),
+      `请学生独立完成这 ${view.questions.length} 道小题；可选择“不确定”。提交后独立保存反馈，原测验分数可继续回查。`),
       linked.length ? el("p", {class: "meta"}, "本次失分评分点：",
         linked.map(p => `${p.rubric_point_id} ${p.criterion}${p.dimension ? `（${dimensions[p.dimension]}）` : ""}`).join("；"),
         "。标注“关联失分点”的小题优先核查。") : null);

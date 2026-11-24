@@ -23,11 +23,11 @@ class DesignDocTests(unittest.TestCase):
             self.assertLessEqual(pages, MAX_PAGES)
             with fitz.open(out) as document:
                 text = "".join(page.get_text() for page in document)
-        for heading in ("问题与边界", "数据与质量控制", "方法", "三名学生案例", "两班分析", "验证", "成果包字段", "复算说明"):
+        for heading in ("需求与分析范围", "数据与质量控制", "方法", "三名学生案例", "两班分析", "验证", "成果包字段", "复算说明"):
             self.assertIn(heading, text)
         self.assertIn("共 53 个，失败 0 个，跳过 2 个", text)
-        self.assertIn("不是掌握概率", text)
-        self.assertIn("尚未开展", text)
+        self.assertIn("经平滑的得分比例", text)
+        self.assertIn("教师评分安排在下一阶段", text)
         self.assertIn("只找到 2 类代表案例", text)  # the synthetic batch has no strength case
         self.assertIn("X-R01", text)
 

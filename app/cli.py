@@ -200,8 +200,14 @@ def export(db, run_id, out):
         outputs["followup_probes.json"] = {"version": manifest["followup_probe_version"], "probes": batch["probes"]}
     out.parent.mkdir(parents=True, exist_ok=True)
     docs = ROOT / "docs"
-    if not (docs / "contracts.md").is_file():
-        docs = Path(sysconfig.get_path("data")) / "share" / "smart-learning-companion"
+    doc_paths = {
+        "contracts.md": docs / "interfaces" / "contracts.md",
+        "integration.md": docs / "interfaces" / "integration.md",
+        "掌握度证据权重说明.md": docs / "evaluation" / "掌握度证据权重说明.md",
+    }
+    if not doc_paths["contracts.md"].is_file():
+        installed_docs = Path(sysconfig.get_path("data")) / "share" / "smart-learning-companion"
+        doc_paths = {name: installed_docs / name for name in doc_paths}
     with TemporaryDirectory(dir=out.parent) as tmp:
         staging = Path(tmp) / "batch"
         staging.mkdir()
@@ -210,8 +216,10 @@ def export(db, run_id, out):
         with (staging / "responses.jsonl").open("w", encoding="utf-8") as stream:
             for row in batch["records"].values():
                 print(encode_json(row), file=stream)
-        for name in ("contracts.md", "integration.md"):
-            (staging / name).write_bytes((docs / name).read_bytes())
+        for name, source in doc_paths.items():
+            (staging / name).write_text(
+                source.read_text(encoding="utf-8").replace("../evaluation/", ""), encoding="utf-8",
+            )
         (staging / "README.md").write_text(
             "# 智慧学伴成果包\n\n"
             "manifest.json 标识批次与教师调整版本。cases.json 汇集可用的代表性案例。\n"
@@ -220,7 +228,7 @@ def export(db, run_id, out):
             "用 python -m app.cli build --source <成果包目录> 可从标准化输入复算初始分析。"
             "教师调整的快照保存在 recommendations.json。"
             "followups.json 保存各指标最近一次追问及反馈，learning_paths.json 保存前置知识补学路径。"
-            "重建只复算初始分析，不导入教师调整和补充追问。\n",
+            "重建复算初始诊断、比较和计划。教师调整及补充追问通过上述快照查阅。\n",
             encoding="utf-8",
         )
         staging.rename(out)

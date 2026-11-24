@@ -1,6 +1,6 @@
 """Simulate how the evidence unit affects mastery-interval coverage.
 
-Generative model (an assumption, stated so the check can be challenged):
+Generative model used in this simulation:
 - each student has a true score share p ~ Uniform(0.05, 0.95) on one indicator;
 - each response is one item with k rubric points; the item is "understood" with
   probability p, and then each point is earned with probability 1 - slip, otherwise

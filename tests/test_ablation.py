@@ -46,7 +46,7 @@ class AblationTests(unittest.TestCase):
                 writer.writerows(rows)
             report = analyze(out / "key.json", [filled, filled])
             self.assertIn(f"{count}/0", report)
-            self.assertIn("不等于诊断准确率", report)
+            self.assertIn("依据充分性", report)
             self.assertIn("4.00", report)
 
     def test_sign_test(self):
