@@ -30,6 +30,7 @@ class DesignDocTests(unittest.TestCase):
         self.assertIn("教师评分安排在下一阶段", text)
         self.assertIn("只找到 2 类代表案例", text)  # the synthetic batch has no strength case
         self.assertIn("X-R01", text)
+        self.assertNotIn(run, text)
 
 
 if __name__ == "__main__":

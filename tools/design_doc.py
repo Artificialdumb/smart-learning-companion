@@ -149,7 +149,7 @@ def section_classes(batch):
         if commons:
             parts.append("<p>共性失分（同班同题同一评分点 ≥ 2 人）：" + "；".join(
                 f"{esc(f['class_id'])} 班 {esc(f['item_id'])} 的 {esc(f['rubric_point_id'])}，"
-                f"{len(f['missed_students'])} 人失分" for f in commons) + "</p>")
+                f"{f['missed_students']} 人失分" for f in commons) + "</p>")
     return "".join(parts)
 
 
@@ -164,9 +164,8 @@ def build_html(batch, plans, data_label, tests, calibration):
     return f"""
 <h1>智慧学伴 · 设计方案</h1>
 <p>七年级数学学情诊断、班级对比与学习建议系统</p>
-<p class="note">生成日期 {date.today().isoformat()} ｜ 数据：{esc(data_label)} ｜ 批次 {esc(manifest['run_id'])} ｜
-规则摘要 {esc(manifest.get('rules_sha256', '')[:16])} ｜ 追问题组 {esc(manifest.get('followup_probe_version', ''))}</p>
-<div class="box">本文所有统计、案例和班级数据均由上述批次自动生成；测验结果与模拟数字在生成本文时实际运行得到。
+<p class="note">生成日期 {date.today().isoformat()} ｜ 数据：{esc(data_label)}</p>
+<div class="box">本文所有统计、案例和班级数据均由输入资料自动生成；测验结果与模拟数字在生成本文时实际运行得到。
 数据标签标识本批次的输入来源，复算命令见第8节。</div>
 
 <h2>1 需求与分析范围</h2>
@@ -238,7 +237,7 @@ def build_html(batch, plans, data_label, tests, calibration):
 4）重新生成本文：<code>python -m tools.design_doc --run-id &lt;批次编号&gt; --data-label 赛题模拟学情数据 --out outputs/智慧学伴-设计方案.pdf</code>。<br/>
 5）运行测试：<code>python -m unittest discover -s tests -v</code>；赛题回归测试需设置 STUDY_CONTEST_SOURCE。</p>
 <p class="note">一致性说明：同一输入两次构建，诊断、对比、计划、规则与题组完全相同，只有批次编号和构建时间不同。若设置 STUDY_MODEL 启用本地模型挑选材料，计划可能因模型输出不同而变化，manifest 的 recommendation_mode 会记录这一点。</p>
-<p class="note">本批次输入文件：{esc('；'.join(f"{s['path']} {s['sha256'][:12]}" for s in sources[:12]))}{' 等' if len(sources) > 12 else ''}</p>
+<p class="note">输入文件：{esc('；'.join(s['path'] for s in sources[:12]))}{' 等' if len(sources) > 12 else ''}</p>
 
 <h2>9 运行条件与下一阶段</h2>
 <p>1）规则诊断覆盖现有课程指标，简单整式符号差异支持步骤定位；2）得分比例指数对作答等权累计，阈值按冻结规则执行；3）追问反馈与原题证据并列展示；4）下一阶段开展教师评价、独立数据复算和新题观察；5）共享部署配置账号、班级权限和HTTPS。</p>
